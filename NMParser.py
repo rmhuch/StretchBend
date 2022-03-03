@@ -95,7 +95,7 @@ def calcMaxDisps(disps_array, freqs, filename):
         csvwriter = csv.writer(csvfile)
 
         # create header for csv
-        header = [str(n) for n in np.arange(len(disps_array[0]))]
+        header = [str(n+1) for n in np.arange(len(disps_array[0]))]
         header.insert(0, "Frequency")
         header.insert(0, "Mode")
         csvwriter.writerow(header)
@@ -105,7 +105,7 @@ def calcMaxDisps(disps_array, freqs, filename):
             norm_disps = np.linalg.norm(mode, axis=1)
             row = list(norm_disps)
             row.insert(0, freqs[i])
-            row.insert(0, i)
+            row.insert(0, i+1)
             csvwriter.writerow(row)
 
 
