@@ -32,7 +32,7 @@ def format_freqs(block):
     freqs = np.array(freqs).flatten()
     return freqs
 
-def format_disps(block):
+def format_disps(logfile):
     """
     Formats Harmonic Normal Mode Displacements from log file into a n-modes X n-atoms X 3 (X Y Z) array
     :param block: Result of `pull_block`
@@ -40,6 +40,7 @@ def format_disps(block):
     :return: `disps` n-modes X n-atoms X 3 (X Y Z)
     :rtype: np.array
     """
+    block = pull_block(logfile)
     lines = block.splitlines(False)
     disps = []
     disp_array1 = None
@@ -114,7 +115,7 @@ if __name__ == '__main__':
     MoleculeDir = os.path.join(docs, "stretch_bend", "tetramer_16", "cage")
     f1 = os.path.join(MoleculeDir, "w4c_oneH8.log")
     b = pull_block(f1)
-    disps = format_disps(b)
+    disps = format_disps(f1)  # edited to parse logfile as well
     freqs = format_freqs(b)
     filename = os.path.join(MoleculeDir, "H8_NMdisps.csv")
     calcMaxDisps(disps, freqs, filename)

@@ -18,19 +18,28 @@ def pullStandardCoordinates(logfile):
     return final_coords
 
 def calcAxes(logfile, waterCoords=None):
+    """ this function calculates _two_ axes systems, each centered at one of the hydrogen atoms in a water molecule.
+        the axes are defined as follows: the OH bond, perpendicular to the HOH molecule, and in-plane with the HOH"""
     coords = pullStandardCoordinates(logfile)
-
     if waterCoords is None:
         raise Exception("Water coordinates not defined")
     else:
         # calculate the r1 and r2 distances
         r1_vec = coords[waterCoords[0], :] - coords[waterCoords[1], :]
         r2_vec = coords[waterCoords[0], :] - coords[waterCoords[2], :]
-        # calculate the three axes
-        a1 = r1_vec / (np.linalg.norm(r1_vec))
-        a2 = np.cross(r1_vec, r2_vec) / (np.linalg.norm(r1_vec) * np.linalg.norm(r2_vec))
-        a3 = np.cross(a1, a2) / (np.linalg.norm(a1) * np.linalg.norm(a2))
-    return a1, a2, a3
+        # calculate the three axes - for H1
+        a11 = r1_vec / (np.linalg.norm(r1_vec))
+        a21 = np.cross(r1_vec, r2_vec) / (np.linalg.norm(r1_vec) * np.linalg.norm(r2_vec))
+        a31 = np.cross(a11, a21) / (np.linalg.norm(a11) * np.linalg.norm(a21))
+        # stack results
+        res1 = np.column_stack((a11, a21, a31))
+        # calculate the three axes - for H2
+        a12 = r2_vec / (np.linalg.norm(r2_vec))
+        a22 = np.cross(r1_vec, r2_vec) / (np.linalg.norm(r1_vec) * np.linalg.norm(r2_vec))
+        a32 = np.cross(a12, a22) / (np.linalg.norm(a12) * np.linalg.norm(a22))
+        # stack results
+        res2 = np.column_stack((a12, a22, a32))
+    return res1, res2
 
 
 if __name__ == '__main__':
