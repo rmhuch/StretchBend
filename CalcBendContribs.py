@@ -31,15 +31,15 @@ def writeResults(resfile, logfile, water_pos):
 
 if __name__ == '__main__':
     docs = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    MoleculeDir = os.path.join(docs, "stretch_bend", "tetramer_16", "cage")
-    f1 = os.path.join(MoleculeDir, "w4c_Hw1.log")
-    f2 = os.path.join(MoleculeDir, "w4c_Hw2.log")
-    f3 = os.path.join(MoleculeDir, "w4c_Hw3.log")
-    f4 = os.path.join(MoleculeDir, "w4c_Hw4.log")
-    w1 = [0, 4, 5]
-    w2 = [1, 6, 7]
-    w3 = [2, 8, 10]
-    w4 = [3, 9, 11]
+    MoleculeDir = os.path.join(docs, "stretch_bend", "tetramer_16", "three_one")
+    f1 = os.path.join(MoleculeDir, "w4t_Hw1.log")
+    f2 = os.path.join(MoleculeDir, "w4t_Hw2.log")
+    f3 = os.path.join(MoleculeDir, "w4t_Hw3.log")
+    f4 = os.path.join(MoleculeDir, "w4t_Hw4.log")
+    w1 = [0, 3, 4]
+    w2 = [1, 5, 6]
+    w3 = [2, 7, 8]
+    w4 = [9, 10, 11]
     writeResults(os.path.join(MoleculeDir, "ProjectionDisps_w1_H.csv"), f1, w1)
     writeResults(os.path.join(MoleculeDir, "ProjectionDisps_w2_H.csv"), f2, w2)
     writeResults(os.path.join(MoleculeDir, "ProjectionDisps_w3_H.csv"), f3, w3)

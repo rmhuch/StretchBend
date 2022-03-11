@@ -44,8 +44,7 @@ def calcAxes(logfile, waterCoords=None):
 
 if __name__ == '__main__':
     docs = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    MoleculeDir = os.path.join(docs, "stretch_bend", "tetramer_16", "cage")
-    cageAtomStr = ["H", "H", "H", "H", "O", "O", "O", "O", "O", "O", "O", "O"]
-    f1 = os.path.join(MoleculeDir, "w4c_Hw1.log")
+    MoleculeDir = os.path.join(docs, "stretch_bend", "tetramer_16", "three_one")
+    f1 = os.path.join(MoleculeDir, "w4t_Hw1.log")
     coords = pullStandardCoordinates(f1)
-    calcAxes(coords, [0, 4, 5])
+    calcAxes(coords, [0, 3, 4])

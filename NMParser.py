@@ -112,11 +112,11 @@ def calcMaxDisps(disps_array, freqs, filename):
 
 if __name__ == '__main__':
     docs = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    MoleculeDir = os.path.join(docs, "stretch_bend", "tetramer_16", "cage")
-    f1 = os.path.join(MoleculeDir, "w4c_oneH8.log")
+    MoleculeDir = os.path.join(docs, "stretch_bend", "tetramer_16", "three_one")
+    f1 = os.path.join(MoleculeDir, "w4t_Hw4.log")
     b = pull_block(f1)
     disps = format_disps(f1)  # edited to parse logfile as well
     freqs = format_freqs(b)
-    filename = os.path.join(MoleculeDir, "H8_NMdisps.csv")
+    filename = os.path.join(MoleculeDir, "Hw4_NMdisps.csv")
     calcMaxDisps(disps, freqs, filename)
 
