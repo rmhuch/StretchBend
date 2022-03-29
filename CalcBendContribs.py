@@ -22,6 +22,17 @@ def calcWaterContribs(logfile, water_pos):
     H2_proj = np.dot(H2_disps, axH2)
     return H1_proj, H2_proj
 
+def calcBendScaling(logfile, water_pos):
+    H1_proj, H2_proj = calcWaterContribs(logfile, water_pos)
+    H1val = abs(H1_proj[21, 2])
+    # print(H1val)
+    H2val = abs(H2_proj[21, 2])
+    # print(H2val)
+    norm_proj = H1val + H2val
+    h1scale = H1val / norm_proj
+    h2scale = H2val / norm_proj
+    return h1scale, h2scale
+
 def writeResults(resfile, logfile, water_pos):
     H1, H2 = calcWaterContribs(logfile, water_pos)
     with open(resfile, "w") as csvfile:
