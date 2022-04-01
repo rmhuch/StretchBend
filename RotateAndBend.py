@@ -130,7 +130,7 @@ def writeNewCoords(logfile, waterPos, theta_d, ang_arg, newfile, atom_str):
         gjfFile.write(f"%chk={newfile[:-4]}.chk \n")
         gjfFile.write("%nproc=28 \n")
         gjfFile.write("%mem=120GB \n")
-        gjfFile.write("#p mp2/aug-cc-pvdz scf=tight opt=verytight density=current \n \n")
+        gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current \n \n")
         gjfFile.write("one water rest D - Tetramer cage double zeta \n \n")
         gjfFile.write("0 1 \n")
 
@@ -153,7 +153,7 @@ if __name__ == '__main__':
     newF = "w4c_Hw1move1_test.gjf"
     cage = ["O", "O", "O", "O", "H", "H", "H", "H", "H", "H", "H", "H"]
     ang_arg = "Decrease"
-    for i, j in enumerate(np.arange(0.5, 6.5, 0.5)):
-        newFf = f"w4c_Hw1_m{i}.gjf"
-        writeNewCoords(f1, [0, 4, 5], j, ang_arg, newFf, cage)
+    for i, j in enumerate(np.arange(0.5, 2.5, 0.5)):
+        newFf = f"w4c_Hw4_m{i}.gjf"
+        writeNewCoords(f1, [3, 9, 11], j, ang_arg, newFf, cage)
 
