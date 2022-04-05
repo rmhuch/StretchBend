@@ -23,6 +23,20 @@ def calcAxis(logfile, waterPos=None):
 
     return axis, origin, H1, H2
 
+def RotMat(c, t, s, X, Y, Z):
+    # construct rotation Matrix for a point about an arbitrary axis
+    d11 = t*X**2 + c
+    d12 = t*X*Y - s*Z
+    d13 = t*X*Z + s*Y
+    d21 = t*X*Y + s*Z
+    d22 = t*Y**2 + c
+    d23 = t*Y*Z - s*X
+    d31 = t*X*Z - s*Y
+    d32 = t*Y*Z + s*X
+    d33 = t*Z**2 + c
+    rotmat = np.array([[d11, d12, d13], [d21, d22, d23], [d31, d32, d33]])
+    return rotmat
+
 def PointRotate3D(logfile, waterPos, theta_d, angle="increase"):
     """
     Return a point rotated about an arbitrary axis in 3D.
@@ -34,24 +48,22 @@ def PointRotate3D(logfile, waterPos, theta_d, angle="increase"):
 """
     # pull axis and origin for given water
     axis, origin, H1, H2 = calcAxis(logfile, waterPos)
-    # Translate so axis AND POINTS are at origin
-    N = axis - origin
+    # Translate so POINTS are at origin - origin defined by the AXIS
     oH1 = H1 - origin
     oH2 = H2 - origin
 
-    # Rotation axis unit vector
-    Nm = np.linalg.norm(N)
-    n = np.array([N[0]/Nm, N[1]/Nm, N[2]/Nm])
+    # Convert rotation axis to unit vector
+    Nm = np.linalg.norm(axis)
+    n = axis / Nm
 
     # calculate theta1 and theta2 (scaled to each H)
     SF1, SF2 = calcBendScaling(logfile, waterPos)
     theta1 = (SF1 * theta_d) * (np.pi/180)
-    # print(theta1)
     theta2 = (SF2 * theta_d) * (np.pi/180)
-    # print(theta2)
-    if angle == "Increase":
-        theta1 *= -1
+    if angle == "Decrease":
         theta2 *= -1
+    elif angle == "Increase":
+        theta1 *= -1
     else:
         pass
 
@@ -63,56 +75,26 @@ def PointRotate3D(logfile, waterPos, theta_d, angle="increase"):
     Y = n[1]
     Z = n[2]
 
-    # construct rotation Matrix 'M'
-    d11 = t*X**2 + c
-    d12 = t*X*Y - s*Z
-    d13 = t*X*Z + s*Y
-    d21 = t*X*Y + s*Z
-    d22 = t*Y**2 + c
-    d23 = t*Y*Z - s*X
-    d31 = t*X*Z - s*Y
-    d32 = t*Y*Z + s*X
-    d33 = t*Z**2 + c
-
-    #            |rotPt.x|
-    # Matrix 'M'*|rotPt.y|
-    #            |rotPt.z|
-    newH1 = np.zeros(3)
-    newH1[0] = d11*oH1[0] + d12*oH1[0] + d13*oH1[0]
-    newH1[1] = d21*oH1[1] + d22*oH1[1] + d23*oH1[1]
-    newH1[2] = d31*oH1[2] + d32*oH1[2] + d33*oH1[2]
+    M = RotMat(c, t, s, X, Y, Z)
+    newH1 = np.dot(M, oH1)
 
     # Matrix common factors - H2
     c2 = np.cos(theta2)
     t2 = (1 - np.cos(theta2))
     s2 = np.sin(theta2)
 
-    # construct rotation Matrix 'M'
-    d11_ = t2*X**2 + c2
-    d12_ = t2*X*Y - s2*Z
-    d13_ = t2*X*Z + s2*Y
-    d21_ = t2*X*Y + s2*Z
-    d22_ = t2*Y**2 + c2
-    d23_ = t2*Y*Z - s2*X
-    d31_ = t2*X*Z - s2*Y
-    d32_ = t2*Y*Z + s2*X
-    d33_ = t2*Z**2 + c2
-
-    #            |rotPt.x|
-    # Matrix 'M'*|rotPt.y|
-    #            |rotPt.z|
-    newH2 = np.zeros(3)
-    newH2[0] = d11_*oH2[0] + d12_*oH2[0] + d13_*oH2[0]
-    newH2[1] = d21_*oH2[1] + d22_*oH2[1] + d23_*oH2[1]
-    newH2[2] = d31_*oH2[2] + d32_*oH2[2] + d33_*oH2[2]
+    M2 = RotMat(c2, t2, s2, X, Y, Z)
+    newH2 = np.dot(M2, oH2)
 
     # Translate axis and rotated point back to original location
     sH1 = newH1 + origin
     sH2 = newH2 + origin
 
     # calculate angle to check
-    vec1 = origin - sH1
-    vec2 = origin - sH2
+    vec1 = sH1 - origin
+    # print("OH1 after :", np.linalg.norm(vec1))
+    vec2 = sH2 - origin
+    # print("OH2 after :", np.linalg.norm(vec2))
     ang = (np.dot(vec1, vec2)) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
     angR = np.arccos(ang)
     print(angR * (180/np.pi))
@@ -150,7 +132,6 @@ if __name__ == '__main__':
     docs = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     MoleculeDir = os.path.join(docs, "stretch_bend", "tetramer_16", "cage")
     f1 = os.path.join(MoleculeDir, "w4c_Hw1.log")
-    newF = "w4c_Hw1move1_test.gjf"
     cage = ["O", "O", "O", "O", "H", "H", "H", "H", "H", "H", "H", "H"]
     ang_arg = "Decrease"
     for i, j in enumerate(np.arange(0.5, 2.5, 0.5)):
