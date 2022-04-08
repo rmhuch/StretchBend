@@ -58,6 +58,7 @@ def PointRotate3D(logfile, waterPos, theta_d, angle="increase"):
 
     # calculate theta1 and theta2 (scaled to each H)
     SF1, SF2 = calcBendScaling(logfile, waterPos)
+    print(SF1, SF2)
     theta1 = (SF1 * theta_d) * (np.pi/180)
     theta2 = (SF2 * theta_d) * (np.pi/180)
     if angle == "Decrease":
@@ -132,9 +133,12 @@ if __name__ == '__main__':
     docs = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     MoleculeDir = os.path.join(docs, "stretch_bend", "tetramer_16", "cage")
     f1 = os.path.join(MoleculeDir, "w4c_Hw1.log")
+    f2 = os.path.join(MoleculeDir, "w4c_Hw2.log")
+    f3 = os.path.join(MoleculeDir, "w4c_Hw3.log")
+    f4 = os.path.join(MoleculeDir, "w4c_Hw4.log")
     cage = ["O", "O", "O", "O", "H", "H", "H", "H", "H", "H", "H", "H"]
     ang_arg = "Decrease"
     for i, j in enumerate(np.arange(0.5, 2.5, 0.5)):
-        newFf = f"w4c_Hw4_m{i}.gjf"
-        writeNewCoords(f1, [3, 9, 11], j, ang_arg, newFf, cage)
+        newFf = f"w4c_Hw1_m{i}.gjf"
+        writeNewCoords(f1, [0, 4, 5], j, ang_arg, newFf, cage)
 
