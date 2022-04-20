@@ -102,7 +102,7 @@ def PointRotate3D(logfile, waterPos, theta_d, angle="increase"):
 
     return sH1, sH2
 
-def writeNewCoords(logfile, waterPos, theta_d, ang_arg, newfile, atom_str):
+def writeNewCoords(logfile, waterPos, theta_d, ang_arg, atom_str, newfile, jobType="SP"):
     """ Return a written gjf file for the new geometry. """
     H1, H2 = PointRotate3D(logfile, waterPos, theta_d, ang_arg)
     coords = pullStandardCoordinates(logfile)
@@ -113,32 +113,40 @@ def writeNewCoords(logfile, waterPos, theta_d, ang_arg, newfile, atom_str):
         gjfFile.write(f"%chk={newfile[:-4]}.chk \n")
         gjfFile.write("%nproc=28 \n")
         gjfFile.write("%mem=120GB \n")
-        gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current \n \n")
-        gjfFile.write("one water rest D - Tetramer cage double zeta \n \n")
+        if jobType == "SP":
+            gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current \n \n")
+        elif jobType == "Harmonic":
+            gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current freq=vibrot \n \n")
+        elif jobType == "Anharmonic":
+            # gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current freq=(vibrot, anh, SelectAnharmonicModes) \n \n")
+            gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current freq=(vibrot, anh) \n \n")
+        else:
+            raise Exception(f"Can not determine what {jobType} job is")
+        gjfFile.write("one water rest D - Dimer double zeta \n \n")
         gjfFile.write("0 1 \n")
 
         for i, coord in enumerate(new_coords):
             if i == waterPos[1] or i == waterPos[2]:
-                gjfFile.write(f"{atom_str[i]}     {coord[0]}  {coord[1]}  {coord[2]} \n")
+                # adding the ":.6f" in the curly brackets tells python to print the value to 6 decimal places
+                gjfFile.write(f"{atom_str[i]}     {coord[0]:.6f}  {coord[1]:.6f}  {coord[2]:.6f} \n")
             elif atom_str[i] == "O":
-                gjfFile.write(f"{atom_str[i]}     {coord[0]}  {coord[1]}  {coord[2]} \n")
+                gjfFile.write(f"{atom_str[i]}     {coord[0]:.6f}  {coord[1]:.6f}  {coord[2]:.6f} \n")
             else:
-                gjfFile.write(f"{atom_str[i]}(iso=2)     {coord[0]}  {coord[1]}  {coord[2]} \n")
-
+                gjfFile.write(f"{atom_str[i]}(iso=2)     {coord[0]:.6f}  {coord[1]:.6f}  {coord[2]:.6f} \n")
+        # if jobType == "Anharmonic":  # if running "SelectAnharmonicModes" specify modes to include
+        #     gjfFile.write("\n 19-30 \n")
         gjfFile.write("\n \n \n")
         gjfFile.close()
 
 
 if __name__ == '__main__':
     docs = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    MoleculeDir = os.path.join(docs, "stretch_bend", "tetramer_16", "cage")
-    f1 = os.path.join(MoleculeDir, "w4c_Hw1.log")
-    f2 = os.path.join(MoleculeDir, "w4c_Hw2.log")
-    f3 = os.path.join(MoleculeDir, "w4c_Hw3.log")
-    f4 = os.path.join(MoleculeDir, "w4c_Hw4.log")
-    cage = ["O", "O", "O", "O", "H", "H", "H", "H", "H", "H", "H", "H"]
-    ang_arg = "Decrease"
+    MoleculeDir = os.path.join(docs, "stretch_bend", "dimer_dz")
+    f1 = os.path.join(MoleculeDir, "w2_Hw1.log")
+    f2 = os.path.join(MoleculeDir, "w2_Hw2.log")
+    cage = ["O", "H", "H", "O", "H", "H"]
+    angArg = "Increase"
     for i, j in enumerate(np.arange(0.5, 2.5, 0.5)):
-        newFf = f"w4c_Hw1_m{i}.gjf"
-        writeNewCoords(f1, [0, 4, 5], j, ang_arg, newFf, cage)
+        newFf = f"w2_Hw2_p{i}_anh.gjf"
+        writeNewCoords(f2, [3, 4, 5], j, angArg, cage, newFf, jobType="Anharmonic")
 

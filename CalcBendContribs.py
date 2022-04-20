@@ -24,9 +24,9 @@ def calcWaterContribs(logfile, water_pos):
 
 def calcBendScaling(logfile, water_pos):
     H1_proj, H2_proj = calcWaterContribs(logfile, water_pos)
-    H1val = abs(H1_proj[21, 2])
+    H1val = abs(H1_proj[7, 2])  # WATCH THIS!! this index is SYSTEM dependent - 21 for tet, 7 for di, 2 for monomer
     # print(H1val)
-    H2val = abs(H2_proj[21, 2])
+    H2val = abs(H2_proj[7, 2])
     # print(H2val)
     norm_proj = H1val + H2val
     h1scale = H1val / norm_proj
