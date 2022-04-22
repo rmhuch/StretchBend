@@ -141,12 +141,14 @@ def writeNewCoords(logfile, waterPos, theta_d, ang_arg, atom_str, newfile, jobTy
 
 if __name__ == '__main__':
     docs = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    MoleculeDir = os.path.join(docs, "stretch_bend", "dimer_dz")
-    f1 = os.path.join(MoleculeDir, "w2_Hw1.log")
-    f2 = os.path.join(MoleculeDir, "w2_Hw2.log")
-    cage = ["O", "H", "H", "O", "H", "H"]
+    MoleculeDir = os.path.join(docs, "stretch_bend", "tetramer_16", "two_DA")
+    f1 = os.path.join(MoleculeDir, "w42_Hw1.log")
+    f2 = os.path.join(MoleculeDir, "w42_Hw2.log")
+    f3 = os.path.join(MoleculeDir, "w42_Hw3.log")
+    f4 = os.path.join(MoleculeDir, "w42_Hw4.log")
+    three_one = ["O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H"]
     angArg = "Increase"
     for i, j in enumerate(np.arange(0.5, 2.5, 0.5)):
-        newFf = f"w2_Hw2_p{i}_anh.gjf"
-        writeNewCoords(f2, [3, 4, 5], j, angArg, cage, newFf, jobType="Anharmonic")
+        newFf = f"w42_Hw4_p{i}.gjf"
+        writeNewCoords(f4, [9, 10, 11], j, angArg, three_one, newFf, jobType="Harmonic")
 

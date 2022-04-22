@@ -1,20 +1,28 @@
 import numpy as np
 from BendAxes import calcAxes
 from NMParser import format_disps
+from NormalModes import calc_disps
 import os
 import csv
 
-def calcWaterContribs(logfile, water_pos):
+def calcWaterContribs(water_pos, logfile=None, fchkfile=None):
     """
     Calculates the NM projection for each H atom onto the axes (OH bond, perp. to HOH, in-plane HOH)
-    :param logfile: path to Gaussian file (Opt/VPT2 of given isotopologue)
-    :type logfile:
     :param water_pos: positions of the atoms that make the water molecule
     :type water_pos: list
+    :param logfile: path to Gaussian log file (Opt/VPT2 of given isotopologue)
+    :type logfile:
+    :param fchkfile: path to Gaussian fchk file (if calcing NM disps by hand)
+    :type fchkfile:
     :return: in two arrays: H1 & H2 projections for each normal mode
     :rtype:tuple of np arrays
     """
-    NMdisps = format_disps(logfile)
+    if logfile is not None:
+        NMdisps = format_disps(logfile)
+    elif fchkfile is not None:
+        NMdisps = calc_disps(fchkfile, water_pos)
+    else:
+        raise Exception(f"Can not calculate with logfile = {logfile} and fchkfile = {fchkfile}")
     axH1, axH2 = calcAxes(logfile, water_pos)
     H1_disps = NMdisps[:, water_pos[1], :]
     H1_proj = np.dot(H1_disps, axH1)
@@ -24,9 +32,9 @@ def calcWaterContribs(logfile, water_pos):
 
 def calcBendScaling(logfile, water_pos):
     H1_proj, H2_proj = calcWaterContribs(logfile, water_pos)
-    H1val = abs(H1_proj[7, 2])  # WATCH THIS!! this index is SYSTEM dependent - 21 for tet, 7 for di, 2 for monomer
+    H1val = abs(H1_proj[21, 2])  # WATCH THIS!! this index is SYSTEM dependent - 21 for tet, 7 for di, 2 for monomer
     # print(H1val)
-    H2val = abs(H2_proj[7, 2])
+    H2val = abs(H2_proj[21, 2])
     # print(H2val)
     norm_proj = H1val + H2val
     h1scale = H1val / norm_proj
