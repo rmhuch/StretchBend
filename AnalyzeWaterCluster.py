@@ -66,7 +66,7 @@ class AnalyzeOneWaterCluster:
         from McUtils.Zachary import finite_difference
         HOH = self.ClusterObj.FDBdat["HOH Angles"]
         ens = self.ClusterObj.FDBdat["Energies"]
-        # print(Constants.convert(ens-min(ens), "wavenumbers", to_AU=False))
+        print(Constants.convert(ens - min(ens), "wavenumbers", to_AU=False))
         deriv = finite_difference(HOH, ens, 2, stencil=5, only_center=True)
         # derivative in hartree/radian^2
         return deriv

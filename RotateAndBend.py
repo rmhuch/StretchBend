@@ -37,7 +37,7 @@ def RotMat(c, t, s, X, Y, Z):
     rotmat = np.array([[d11, d12, d13], [d21, d22, d23], [d31, d32, d33]])
     return rotmat
 
-def PointRotate3D(logfile, waterPos, theta_d, angle="increase"):
+def PointRotate3D(logfile, waterPos, theta_d, angle="increase", bend_mode=None):
     """
     Return a point rotated about an arbitrary axis in 3D.
     Positive angles are counter-clockwise looking down the axis toward the origin.
@@ -57,7 +57,7 @@ def PointRotate3D(logfile, waterPos, theta_d, angle="increase"):
     n = axis / Nm
 
     # calculate theta1 and theta2 (scaled to each H)
-    SF1, SF2 = calcBendScaling(logfile, waterPos)
+    SF1, SF2 = calcBendScaling(logfile, waterPos, bend_mode=bend_mode)
     print(SF1, SF2)
     theta1 = (SF1 * theta_d) * (np.pi/180)
     theta2 = (SF2 * theta_d) * (np.pi/180)
@@ -102,9 +102,11 @@ def PointRotate3D(logfile, waterPos, theta_d, angle="increase"):
 
     return sH1, sH2
 
-def writeNewCoords(logfile, waterPos, theta_d, ang_arg, atom_str, newfile, jobType="SP"):
+def writeNewCoords(logfile, waterPos, theta_d, ang_arg, atom_str, newfile, bend_mode=None, jobType="SP"):
     """ Return a written gjf file for the new geometry. """
-    H1, H2 = PointRotate3D(logfile, waterPos, theta_d, ang_arg)
+    if bend_mode is None:
+        raise Exception(f"Can not complete without bend mode defined.")
+    H1, H2 = PointRotate3D(logfile, waterPos, theta_d, ang_arg, bend_mode)
     coords = pullStandardCoordinates(logfile)
     new_coords = np.copy(coords)
     new_coords[waterPos[1]] = H1
@@ -141,14 +143,22 @@ def writeNewCoords(logfile, waterPos, theta_d, ang_arg, atom_str, newfile, jobTy
 
 if __name__ == '__main__':
     docs = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    MoleculeDir = os.path.join(docs, "stretch_bend", "tetramer_16", "two_DA")
-    f1 = os.path.join(MoleculeDir, "w42_Hw1.log")
-    f2 = os.path.join(MoleculeDir, "w42_Hw2.log")
-    f3 = os.path.join(MoleculeDir, "w42_Hw3.log")
-    f4 = os.path.join(MoleculeDir, "w42_Hw4.log")
-    three_one = ["O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H"]
-    angArg = "Increase"
-    for i, j in enumerate(np.arange(0.5, 2.5, 0.5)):
-        newFf = f"w42_Hw4_p{i}.gjf"
-        writeNewCoords(f4, [9, 10, 11], j, angArg, three_one, newFf, jobType="Harmonic")
-
+    MoleculeDir = os.path.join(docs, "stretch_bend", "pentamer", "ring")
+    tet_cage = ["O", "O", "O", "O", "H", "H", "H", "H", "H", "H", "H", "H"]
+    hexa = ["O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H"]
+    penta = ["O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H"]
+    water_pos = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [12, 13, 14], [15, 16, 17]]
+    tet_pos = [[0, 4, 5], [1, 6, 7], [2, 8, 10], [3, 9, 11]]
+    bendMode = 28  # 35 for hexamer, 28 for pentamer, 21 for tet, 7 for di, 2 for monomer
+    for f in np.arange(1, 6):
+        print(f)
+        log = os.path.join(MoleculeDir, f"w5r_Hw{f}.log")
+        angArg = "Decrease"
+        pos = water_pos[f-1]
+        for i, j in enumerate(np.arange(0.5, 2.5, 0.5)):
+            newFf = f"w5r_Hw{f}_m{i}.gjf"
+            writeNewCoords(log, pos, j, angArg, penta, newFf, bend_mode=bendMode, jobType="SP")
+        angArg2 = "Increase"
+        for i, j in enumerate(np.arange(0.5, 2.5, 0.5)):
+            newFf = f"w5r_Hw{f}_p{i}.gjf"
+            writeNewCoords(log, pos, j, angArg2, penta, newFf, bend_mode=bendMode, jobType="SP")

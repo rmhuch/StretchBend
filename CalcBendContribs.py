@@ -30,11 +30,11 @@ def calcWaterContribs(water_pos, logfile=None, fchkfile=None):
     H2_proj = np.dot(H2_disps, axH2)
     return H1_proj, H2_proj
 
-def calcBendScaling(logfile, water_pos):
-    H1_proj, H2_proj = calcWaterContribs(logfile, water_pos)
-    H1val = abs(H1_proj[21, 2])  # WATCH THIS!! this index is SYSTEM dependent - 21 for tet, 7 for di, 2 for monomer
+def calcBendScaling(logfile, water_pos, bend_mode=None):
+    H1_proj, H2_proj = calcWaterContribs(water_pos=water_pos, logfile=logfile)
+    H1val = abs(H1_proj[bend_mode, 2])
     # print(H1val)
-    H2val = abs(H2_proj[21, 2])
+    H2val = abs(H2_proj[bend_mode, 2])
     # print(H2val)
     norm_proj = H1val + H2val
     h1scale = H1val / norm_proj
