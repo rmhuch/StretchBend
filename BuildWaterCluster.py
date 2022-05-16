@@ -7,9 +7,12 @@ class BuildMonomer:
     def __init__(self):
         self._ClusterDir = None  # Directory with specific cluster data
         self._atomarray = None  # list of Atom names in the order of the Gaussian input/output
+        self._wateridx = None  # re-order atom names to be O, H, H (like the others)
         self._massarray = None  # list of corresponding masses
         self._Fchkdat = None  # FchkInterpreter Object
+        self._eqlog = None
         self._waterIntCoords = None
+        self._HarmFreqs = None  # harmonic Frequencies from eq point
         self._FDBdat = None  # dictionary of fchk data for angle scan of `self.FDBstep` degrees (5 pts)
 
     @property
@@ -27,6 +30,12 @@ class BuildMonomer:
         return self._atomarray
 
     @property
+    def wateridx(self):
+        if self._wateridx is None:
+            self._wateridx = [1, 0, 2]
+        return self._wateridx
+
+    @property
     def massarray(self):
         """Uses the `self.atomarray` (list of strings) to identify atoms, pulls masses from `Constants` class and
          converts to atomic units
@@ -37,7 +46,7 @@ class BuildMonomer:
             mass_array = []
             for A in self.atomarray:
                 mass_array.append(Constants.convert(Constants.masses[A][0], Constants.masses[A][1], to_AU=True))
-            self._massarray = mass_array
+            self._massarray = np.array(mass_array)
         return self._massarray
 
     @property
@@ -47,15 +56,28 @@ class BuildMonomer:
         return self._Fchkdat
 
     @property
+    def eqlog(self):
+        if self._eqlog is None:
+            self._eqlog = os.path.join(self.ClusterDir, "monomerF.log")
+        return self._eqlog
+
+    @property
     def waterIntCoords(self):
         if self._waterIntCoords is None:
             self._waterIntCoords = self.calcInternals()
         return self._waterIntCoords
 
     @property
+    def HarmFreqs(self):
+        if self._HarmFreqs is None:
+            self._HarmFreqs = self.pullHarmFreqs()
+        return self._HarmFreqs
+
+    @property
     def FDBdat(self):
         if self._FDBdat is None:
             self._FDBdat = self.getFDdat()
+            self.spiny_spin()
         return self._FDBdat
 
     def calcInternals(self):
@@ -69,12 +91,18 @@ class BuildMonomer:
         data_dict = {"R12": r12, "R23": r23, "HOH": angR}
         return data_dict
 
+    def pullHarmFreqs(self):
+        from NMParser import pull_block, format_freqs
+        dat = pull_block(self.eqlog)
+        freqs = format_freqs(dat)
+        return freqs
+
     def getFDdat(self):
-        files = [os.path.join(self.ClusterDir, f"HOH_m1.fchk"),
-                 os.path.join(self.ClusterDir, f"HOH_m0.fchk"),
+        files = [os.path.join(self.ClusterDir, f"HOH_m1_anh.fchk"),
+                 os.path.join(self.ClusterDir, f"HOH_m0_anh.fchk"),
                  os.path.join(self.ClusterDir, f"monomerF3.fchk"),
-                 os.path.join(self.ClusterDir, f"HOH_p0.fchk"),
-                 os.path.join(self.ClusterDir, f"HOH_p1.fchk")]
+                 os.path.join(self.ClusterDir, f"HOH_p0_anh.fchk"),
+                 os.path.join(self.ClusterDir, f"HOH_p1_anh.fchk")]
         dat = FchkInterpreter(*files)
         # pull cartesians and calculate bend angles
         carts = dat.cartesians
@@ -96,8 +124,8 @@ class BuildMonomer:
         ens = dat.MP2Energy  # (5,) - one/step
         # pull dipole moments
         dips = dat.Dipoles  # (5, 3, 3) - XYZ for 3 atoms / step
-        # dd = dat.DipoleDerivatives - no dipole derivs from SP calcs
-        # dd = dd.reshape((5, 3, 9))  # XYZ for XYZ for 3 atoms / step
+        dd = dat.DipoleDerivatives
+        dd = dd.reshape((5, 3, 9))  # XYZ for XYZ for 3 atoms / step
         # order angles/energies - triple check
         sort_idx = np.argsort(HOH)
         HOH_sort = HOH[sort_idx]
@@ -106,10 +134,29 @@ class BuildMonomer:
         carts_sort = carts[sort_idx, :, :]
         ens_sort = ens[sort_idx]
         dips_sort = dips[sort_idx]
-        # dd_sort = dd[sort_idx, :, :]
-        data_dict = {"Cartesians": carts_sort, "R12": R12_sort, "R23": R23_sort, "HOH Angles": HOH_sort,
-                     "Energies": ens_sort, "Dipoles": dips_sort}  #, "Dipole Derivatives": dd_sort}
+        dd_sort = dd[sort_idx, :, :]
+        data_dict = {"Cartesians": np.array(carts_sort), "R12": R12_sort, "R23": R23_sort, "HOH Angles": HOH_sort,
+                     "Energies": ens_sort, "Dipoles": np.array(dips_sort), "Dipole Derivatives": np.array(dd_sort)}
         return data_dict
+
+    def spiny_spin(self):
+        from Eckart_turny_turn import EckartsSpinz
+        from PAF_spinz import MomentOfSpinz
+        PAobj = MomentOfSpinz(self.FDBdat["Cartesians"][2], self.massarray)
+        ref = PAobj.RotCoords
+        EckObjCarts = EckartsSpinz(ref, self.FDBdat["Cartesians"], self.massarray, planar=True)
+        self.FDBdat["RotCartesians"] = EckObjCarts.RotCoords
+        RotDips = np.zeros((5, 3))
+        for i, dip in enumerate(self.FDBdat["Dipoles"]):
+            RotDips[i, :] = dip@EckObjCarts.TransformMat[i]
+        self.FDBdat["RotDipoles"] = RotDips
+        RotDipDerivs = np.zeros((5, 3, 9))
+        for i, step in enumerate(self.FDBdat["Dipole Derivatives"]):
+            dU = step.reshape((3, 3, 3))
+            rot1 = np.tensordot(dU, EckObjCarts.TransformMat[i], axes=[1, 1])
+            rot2 = np.tensordot(rot1, EckObjCarts.TransformMat[i], axes=[1, 1])
+            RotDipDerivs[i] = rot2.reshape((3, 9))
+        self.FDBdat["RotDipoleDerivatives"] = RotDipDerivs
 
 class BuildDimer:
     def __init__(self, isotopologue=None, FDBstep=None):
@@ -123,9 +170,11 @@ class BuildDimer:
         self._atomarray = None  # list of Atom names in the order of the Gaussian input/output
         self._massarray = None  # list of corresponding masses
         self._eqfchk = None  # path/filename of the data for the equilibrium structure (fchk of anharmonic calc)
+        self._eqlog = None  # path/filename of the data for the equilibrium structure (log of anharmonic calc)
         self._EQcartesians = None  # all cartesian coordinates at the equilibrium for given isotopologue
         self._FDBdat = None  # dictionary of fchk data for angle scan of `self.FDBstep` degrees (5 pts)
         self._waterIntCoords = None  # dictionary of water internal coordinates (from eq fchk)
+        self._HarmFreqs = None  # array of harmonic frequencies (from eq log)
 
     @property
     def ClusterDir(self):
@@ -168,7 +217,7 @@ class BuildDimer:
             mass_array = []
             for A in self.atomarray:
                 mass_array.append(Constants.convert(Constants.masses[A][0], Constants.masses[A][1], to_AU=True))
-            self._massarray = mass_array
+            self._massarray = np.array(mass_array)
         return self._massarray
 
     @property
@@ -177,6 +226,13 @@ class BuildDimer:
             waterNum = self.isotopologue[-1]
             self._eqfchk = os.path.join(self.WaterDir, f"w2_Hw{waterNum}.fchk")
         return self._eqfchk
+
+    @property
+    def eqlog(self):
+        if self._eqlog is None:
+            waterNum = self.isotopologue[-1]
+            self._eqlog = os.path.join(self.WaterDir, f"w2_Hw{waterNum}.log")
+        return self._eqlog
 
     @property
     def EQcartesians(self):
@@ -188,6 +244,7 @@ class BuildDimer:
     def FDBdat(self):
         if self._FDBdat is None:
             self._FDBdat = self.getFDdat(step=self.FDBstep)
+            self.spiny_spin()
         return self._FDBdat
 
     @property
@@ -195,6 +252,12 @@ class BuildDimer:
         if self._waterIntCoords is None:
             self._waterIntCoords = self.calcInternals()
         return self._waterIntCoords
+
+    @property
+    def HarmFreqs(self):
+        if self._HarmFreqs is None:
+            self._HarmFreqs = self.pullHarmFreqs()
+        return self._HarmFreqs
 
     def pullWaterIdx(self):
         """ If the isotopologue type is 1 H2O, 1 D2O this sets the `wateridx` property to the appropriately
@@ -289,9 +352,25 @@ class BuildDimer:
         ens_sort = ens[sort_idx]
         dips_sort = dips[sort_idx]
         dd_sort = dd[sort_idx, :, :]
-        data_dict = {"Cartesians": carts_sort, "R12": R12_sort, "R23": R23_sort, "HOH Angles": HOH_sort,
-                     "Energies": ens_sort, "Dipoles": dips_sort, "Dipole Derivatives": dd_sort}
+        data_dict = {"Cartesians": np.array(carts_sort), "R12": R12_sort, "R23": R23_sort, "HOH Angles": HOH_sort,
+                     "Energies": ens_sort, "Dipoles": np.array(dips_sort), "Dipole Derivatives": np.array(dd_sort)}
         return data_dict
+
+    def spiny_spin(self):
+        from Eckart_turny_turn import EckartsSpinz
+        from PAF_spinz import MomentOfSpinz
+        PAobj = MomentOfSpinz(self.FDBdat["Cartesians"][2], self.massarray)
+        ref = PAobj.RotCoords
+        EckObjCarts = EckartsSpinz(ref, self.FDBdat["Cartesians"], self.massarray)
+        self.FDBdat["RotCartesians"] = EckObjCarts.RotCoords
+        self.FDBdat["RotDipoles"] = self.FDBdat["Dipoles"]@EckObjCarts.TransformMat
+        RotDipDerivs = np.zeros((5, 6, 9))
+        for i, step in enumerate(self.FDBdat["Dipole Derivatives"]):
+            dU = step.reshape((6, 3, 3))
+            rot1 = np.tensordot(dU, EckObjCarts.TransformMat[i], axes=[1, 1])
+            rot2 = np.tensordot(rot1, EckObjCarts.TransformMat[i], axes=[1, 1])
+            RotDipDerivs[i] = rot2.reshape((6, 9))
+        self.FDBdat["RotDipoleDerivatives"] = RotDipDerivs
 
     def calcInternals(self):
         coords = self.EQcartesians
@@ -303,6 +382,12 @@ class BuildDimer:
         angR = np.arccos(ang)
         data_dict = {"R12": r12, "R23": r23, "HOH": angR}
         return data_dict
+
+    def pullHarmFreqs(self):
+        from NMParser import pull_block, format_freqs
+        dat = pull_block(self.eqlog)
+        freqs = format_freqs(dat)
+        return freqs
 
 class BuildTetCage:
     def __init__(self, isotopologue=None, FDBstep=None):
@@ -316,9 +401,11 @@ class BuildTetCage:
         self._atomarray = None  # list of Atom names in the order of the Gaussian input/output
         self._massarray = None  # list of corresponding masses
         self._eqfchk = None  # path/filename of the data for the equilibrium structure (fchk of anharmonic calc)
+        self._eqlog = None
         self._EQcartesians = None  # all cartesian coordinates at the equilibrium for given isotopologue
         self._FDBdat = None  # dictionary of fchk data for angle scan of `self.FDBstep` degrees (5 pts)
         self._waterIntCoords = None  # dictionary of water internal coordinates (from eq fchk)
+        self._HarmFreqs = None
 
     @property
     def ClusterDir(self):
@@ -372,6 +459,13 @@ class BuildTetCage:
         return self._eqfchk
 
     @property
+    def eqlog(self):
+        if self._eqlog is None:
+            waterNum = self.isotopologue[-1]
+            self._eqlog = os.path.join(self.WaterDir, f"w4c_Hw{waterNum}.log")
+        return self._eqlog
+
+    @property
     def EQcartesians(self):
         if self._EQcartesians is None:
             self._EQcartesians = self.getCarts()
@@ -388,6 +482,12 @@ class BuildTetCage:
         if self._waterIntCoords is None:
             self._waterIntCoords = self.calcInternals()
         return self._waterIntCoords
+
+    @property
+    def HarmFreqs(self):
+        if self._HarmFreqs is None:
+            self._HarmFreqs = self.pullHarmFreqs()
+        return self._HarmFreqs
                
     def pullWaterIdx(self):
         """ If the isotopologue type is 1 H2O, 3 D2O this sets the `wateridx` property to the appropriately
@@ -505,6 +605,12 @@ class BuildTetCage:
         data_dict = {"R12": r12, "R23": r23, "HOH": angR}
         return data_dict
 
+    def pullHarmFreqs(self):
+        from NMParser import pull_block, format_freqs
+        dat = pull_block(self.eqlog)
+        freqs = format_freqs(dat)
+        return freqs
+
     def writeFDxyz(self, file_name):
         """writes an xyz file to visualize structures from a scan.
         :arg file_name: string name of the xyz file to be written
@@ -531,9 +637,11 @@ class BuildTetThreeOne:
         self._atomarray = None  # list of Atom names in the order of the Gaussian input/output
         self._massarray = None  # list of corresponding masses
         self._eqfchk = None  # path/filename of the data for the equilibrium structure (fchk of anharmonic calc)
+        self._eqlog = None
         self._EQcartesians = None  # all cartesian coordinates at the equilibrium for given isotopologue
         self._FDBdat = None  # dictionary of fchk data for angle scan of `self.FDBstep` degrees (5 pts)
         self._waterIntCoords = None  # dictionary of water internal coordinates (from eq fchk)
+        self._HarmFreqs = None
 
     @property
     def ClusterDir(self):
@@ -587,6 +695,13 @@ class BuildTetThreeOne:
         return self._eqfchk
 
     @property
+    def eqlog(self):
+        if self._eqlog is None:
+            waterNum = self.isotopologue[-1]
+            self._eqlog = os.path.join(self.WaterDir, f"w4t_Hw{waterNum}.log")
+        return self._eqlog
+
+    @property
     def EQcartesians(self):
         if self._EQcartesians is None:
             self._EQcartesians = self.getCarts()
@@ -603,6 +718,12 @@ class BuildTetThreeOne:
         if self._waterIntCoords is None:
             self._waterIntCoords = self.calcInternals()
         return self._waterIntCoords
+
+    @property
+    def HarmFreqs(self):
+        if self._HarmFreqs is None:
+            self._HarmFreqs = self.pullHarmFreqs()
+        return self._HarmFreqs
 
     def pullWaterIdx(self):
         """ If the isotopologue type is 1 H2O, 3 D2O this sets the `wateridx` property to the appropriately
@@ -722,6 +843,12 @@ class BuildTetThreeOne:
         data_dict = {"R12": r12, "R23": r23, "HOH": angR}
         return data_dict
 
+    def pullHarmFreqs(self):
+        from NMParser import pull_block, format_freqs
+        dat = pull_block(self.eqlog)
+        freqs = format_freqs(dat)
+        return freqs
+
     def writeFDxyz(self, file_name):
         """writes an xyz file to visualize structures from a scan.
         :arg file_name: string name of the xyz file to be written
@@ -748,9 +875,11 @@ class BuildPentCage:
         self._atomarray = None  # list of Atom names in the order of the Gaussian input/output
         self._massarray = None  # list of corresponding masses
         self._eqfchk = None  # path/filename of the data for the equilibrium structure (fchk of anharmonic calc)
+        self._eqlog = None
         self._EQcartesians = None  # all cartesian coordinates at the equilibrium for given isotopologue
         self._FDBdat = None  # dictionary of fchk data for angle scan of `self.FDBstep` degrees (5 pts)
         self._waterIntCoords = None  # dictionary of water internal coordinates (from eq fchk - all H)
+        self._HarmFreqs = None
 
     @property
     def ClusterDir(self):
@@ -799,8 +928,16 @@ class BuildPentCage:
     @property
     def eqfchk(self):
         if self._eqfchk is None:
-            self._eqfchk = os.path.join(self.ClusterDir, f"w5c_allH.fchk")
+            waterNum = self.isotopologue[-1]
+            self._eqfchk = os.path.join(self.WaterDir, f"w5c_Hw{waterNum}.fchk")
         return self._eqfchk
+
+    @property
+    def eqlog(self):
+        if self._eqlog is None:
+            waterNum = self.isotopologue[-1]
+            self._eqlog = os.path.join(self.WaterDir, f"w5c_Hw{waterNum}.log")
+        return self._eqlog
 
     @property
     def EQcartesians(self):
@@ -819,6 +956,12 @@ class BuildPentCage:
         if self._waterIntCoords is None:
             self._waterIntCoords = self.calcInternals()
         return self._waterIntCoords
+
+    @property
+    def HarmFreqs(self):
+        if self._HarmFreqs is None:
+            self._HarmFreqs = self.pullHarmFreqs()
+        return self._HarmFreqs
 
     def pullWaterIdx(self):
         """ If the isotopologue type is 1 H2O, 5 D2O this sets the `wateridx` property to the appropriately
@@ -875,17 +1018,17 @@ class BuildPentCage:
         waterNum = self.isotopologue[-1]
         if units == "degrees":
             if step == "0.5":
-                files = [os.path.join(self.WaterDir, f"w5c_Hw{waterNum}_m1.fchk"),
-                         os.path.join(self.WaterDir, f"w5c_Hw{waterNum}_m0.fchk"),
+                files = [os.path.join(self.WaterDir, f"w5c_Hw{waterNum}_m1_harm.fchk"),
+                         os.path.join(self.WaterDir, f"w5c_Hw{waterNum}_m0_harm.fchk"),
                          os.path.join(self.WaterDir, f"w5c_Hw{waterNum}.fchk"),
-                         os.path.join(self.WaterDir, f"w5c_Hw{waterNum}_p0.fchk"),
-                         os.path.join(self.WaterDir, f"w5c_Hw{waterNum}_p1.fchk")]
+                         os.path.join(self.WaterDir, f"w5c_Hw{waterNum}_p0_harm.fchk"),
+                         os.path.join(self.WaterDir, f"w5c_Hw{waterNum}_p1_harm.fchk")]
             elif step == "1":
-                files = [os.path.join(self.WaterDir, f"w5c_Hw{waterNum}_m3.fchk"),
-                         os.path.join(self.WaterDir, f"w5c_Hw{waterNum}_m1.fchk"),
+                files = [os.path.join(self.WaterDir, f"w5c_Hw{waterNum}_m3_harm.fchk"),
+                         os.path.join(self.WaterDir, f"w5c_Hw{waterNum}_m1_harm.fchk"),
                          os.path.join(self.WaterDir, f"w5c_Hw{waterNum}.fchk"),
-                         os.path.join(self.WaterDir, f"w5c_Hw{waterNum}_p1.fchk"),
-                         os.path.join(self.WaterDir, f"w5c_Hw{waterNum}_p3.fchk")]
+                         os.path.join(self.WaterDir, f"w5c_Hw{waterNum}_p1_harm.fchk"),
+                         os.path.join(self.WaterDir, f"w5c_Hw{waterNum}_p3_harm.fchk")]
             else:
                 raise Exception(f"Can find data with {units} units and {step} step size.")
         else:
@@ -911,8 +1054,8 @@ class BuildPentCage:
         ens = dat.MP2Energy  # (5,) - one/step
         # pull dipole moments
         dips = dat.Dipoles  # (5, 18, 3) - XYZ for 18 atoms / step
-        # dd = dat.DipoleDerivatives
-        # dd = dd.reshape((5, 18, 9))  # XYZ for XYZ for 18 atoms / step
+        dd = dat.DipoleDerivatives
+        dd = dd.reshape((5, 18, 9))  # XYZ for XYZ for 18 atoms / step
         # order angles/energies - triple check
         sort_idx = np.argsort(HOH)
         HOH_sort = HOH[sort_idx]
@@ -921,9 +1064,9 @@ class BuildPentCage:
         carts_sort = carts[sort_idx, :, :]
         ens_sort = ens[sort_idx]
         dips_sort = dips[sort_idx]
-        # dd_sort = dd[sort_idx, :, :]
+        dd_sort = dd[sort_idx, :, :]
         data_dict = {"Cartesians": carts_sort, "R12": R12_sort, "R23": R23_sort, "HOH Angles": HOH_sort,
-                     "Energies": ens_sort, "Dipoles": dips_sort}  # , "Dipole Derivatives": dd_sort}
+                     "Energies": ens_sort, "Dipoles": dips_sort, "Dipole Derivatives": dd_sort}
         return data_dict
 
     def calcInternals(self):
@@ -937,6 +1080,12 @@ class BuildPentCage:
         data_dict = {"R12": r12, "R23": r23, "HOH": angR}
         return data_dict
 
+    def pullHarmFreqs(self):
+        from NMParser import pull_block, format_freqs
+        dat = pull_block(self.eqlog)
+        freqs = format_freqs(dat)
+        return freqs
+
 class BuildPentRing:
     def __init__(self, isotopologue=None, FDBstep=None):
         if isotopologue is None:
@@ -949,9 +1098,11 @@ class BuildPentRing:
         self._atomarray = None  # list of Atom names in the order of the Gaussian input/output
         self._massarray = None  # list of corresponding masses
         self._eqfchk = None  # path/filename of the data for the equilibrium structure (fchk of anharmonic calc)
+        self._eqlog = None
         self._EQcartesians = None  # all cartesian coordinates at the equilibrium for given isotopologue
         self._FDBdat = None  # dictionary of fchk data for angle scan of `self.FDBstep` degrees (5 pts)
         self._waterIntCoords = None  # dictionary of water internal coordinates (from eq fchk - all H)
+        self._HarmFreqs = None
 
     @property
     def ClusterDir(self):
@@ -1000,8 +1151,16 @@ class BuildPentRing:
     @property
     def eqfchk(self):
         if self._eqfchk is None:
-            self._eqfchk = os.path.join(self.ClusterDir, f"w5r_allH.fchk")
+            waterNum = self.isotopologue[-1]
+            self._eqfchk = os.path.join(self.WaterDir, f"w5r_Hw{waterNum}.fchk")
         return self._eqfchk
+
+    @property
+    def eqlog(self):
+        if self._eqlog is None:
+            waterNum = self.isotopologue[-1]
+            self._eqlog = os.path.join(self.WaterDir, f"w5r_Hw{waterNum}.log")
+        return self._eqlog
 
     @property
     def EQcartesians(self):
@@ -1020,6 +1179,12 @@ class BuildPentRing:
         if self._waterIntCoords is None:
             self._waterIntCoords = self.calcInternals()
         return self._waterIntCoords
+
+    @property
+    def HarmFreqs(self):
+        if self._HarmFreqs is None:
+            self._HarmFreqs = self.pullHarmFreqs()
+        return self._HarmFreqs
 
     def pullWaterIdx(self):
         """ If the isotopologue type is 1 H2O, 5 D2O this sets the `wateridx` property to the appropriately
@@ -1076,17 +1241,17 @@ class BuildPentRing:
         waterNum = self.isotopologue[-1]
         if units == "degrees":
             if step == "0.5":
-                files = [os.path.join(self.WaterDir, f"w5r_Hw{waterNum}_m1.fchk"),
-                         os.path.join(self.WaterDir, f"w5r_Hw{waterNum}_m0.fchk"),
+                files = [os.path.join(self.WaterDir, f"w5r_Hw{waterNum}_m1_harm.fchk"),
+                         os.path.join(self.WaterDir, f"w5r_Hw{waterNum}_m0_harm.fchk"),
                          os.path.join(self.WaterDir, f"w5r_Hw{waterNum}.fchk"),
-                         os.path.join(self.WaterDir, f"w5r_Hw{waterNum}_p0.fchk"),
-                         os.path.join(self.WaterDir, f"w5r_Hw{waterNum}_p1.fchk")]
+                         os.path.join(self.WaterDir, f"w5r_Hw{waterNum}_p0_harm.fchk"),
+                         os.path.join(self.WaterDir, f"w5r_Hw{waterNum}_p1_harm.fchk")]
             elif step == "1":
-                files = [os.path.join(self.WaterDir, f"w5r_Hw{waterNum}_m3.fchk"),
-                         os.path.join(self.WaterDir, f"w5r_Hw{waterNum}_m1.fchk"),
+                files = [os.path.join(self.WaterDir, f"w5r_Hw{waterNum}_m3_harm.fchk"),
+                         os.path.join(self.WaterDir, f"w5r_Hw{waterNum}_m1_harm.fchk"),
                          os.path.join(self.WaterDir, f"w5r_Hw{waterNum}.fchk"),
-                         os.path.join(self.WaterDir, f"w5r_Hw{waterNum}_p1.fchk"),
-                         os.path.join(self.WaterDir, f"w5r_Hw{waterNum}_p3.fchk")]
+                         os.path.join(self.WaterDir, f"w5r_Hw{waterNum}_p1_harm.fchk"),
+                         os.path.join(self.WaterDir, f"w5r_Hw{waterNum}_p3_harm.fchk")]
             else:
                 raise Exception(f"Can find data with {units} units and {step} step size.")
         else:
@@ -1112,8 +1277,8 @@ class BuildPentRing:
         ens = dat.MP2Energy  # (5,) - one/step
         # pull dipole moments
         dips = dat.Dipoles  # (5, 18, 3) - XYZ for 18 atoms / step
-        # dd = dat.DipoleDerivatives
-        # dd = dd.reshape((5, 18, 9))  # XYZ for XYZ for 18 atoms / step
+        dd = dat.DipoleDerivatives
+        dd = dd.reshape((5, 18, 9))  # XYZ for XYZ for 18 atoms / step
         # order angles/energies - triple check
         sort_idx = np.argsort(HOH)
         HOH_sort = HOH[sort_idx]
@@ -1122,9 +1287,9 @@ class BuildPentRing:
         carts_sort = carts[sort_idx, :, :]
         ens_sort = ens[sort_idx]
         dips_sort = dips[sort_idx]
-        # dd_sort = dd[sort_idx, :, :]
+        dd_sort = dd[sort_idx, :, :]
         data_dict = {"Cartesians": carts_sort, "R12": R12_sort, "R23": R23_sort, "HOH Angles": HOH_sort,
-                     "Energies": ens_sort, "Dipoles": dips_sort}  # , "Dipole Derivatives": dd_sort}
+                     "Energies": ens_sort, "Dipoles": dips_sort, "Dipole Derivatives": dd_sort}
         return data_dict
 
     def calcInternals(self):
@@ -1138,6 +1303,12 @@ class BuildPentRing:
         data_dict = {"R12": r12, "R23": r23, "HOH": angR}
         return data_dict
 
+    def pullHarmFreqs(self):
+        from NMParser import pull_block, format_freqs
+        dat = pull_block(self.eqlog)
+        freqs = format_freqs(dat)
+        return freqs
+
 class BuildHexCage:
     def __init__(self, isotopologue=None, FDBstep=None):
         if isotopologue is None:
@@ -1150,9 +1321,11 @@ class BuildHexCage:
         self._atomarray = None  # list of Atom names in the order of the Gaussian input/output
         self._massarray = None  # list of corresponding masses
         self._eqfchk = None  # path/filename of the data for the equilibrium structure (fchk of anharmonic calc)
+        self._eqlog = None
         self._EQcartesians = None  # all cartesian coordinates at the equilibrium for given isotopologue
         self._FDBdat = None  # dictionary of fchk data for angle scan of `self.FDBstep` degrees (5 pts)
         self._waterIntCoords = None  # dictionary of water internal coordinates (from eq fchk - all H)
+        self._HarmFreqs = None
 
     @property
     def ClusterDir(self):
@@ -1201,8 +1374,16 @@ class BuildHexCage:
     @property
     def eqfchk(self):
         if self._eqfchk is None:
-            self._eqfchk = os.path.join(self.ClusterDir, f"w6c_allH.fchk")
+            waterNum = self.isotopologue[-1]
+            self._eqfchk = os.path.join(self.WaterDir, f"w6c_Hw{waterNum}.fchk")
         return self._eqfchk
+
+    @property
+    def eqlog(self):
+        if self._eqlog is None:
+            waterNum = self.isotopologue[-1]
+            self._eqlog = os.path.join(self.WaterDir, f"w6c_Hw{waterNum}.log")
+        return self._eqlog
 
     @property
     def EQcartesians(self):
@@ -1221,6 +1402,12 @@ class BuildHexCage:
         if self._waterIntCoords is None:
             self._waterIntCoords = self.calcInternals()
         return self._waterIntCoords
+
+    @property
+    def HarmFreqs(self):
+        if self._HarmFreqs is None:
+            self._HarmFreqs = self.pullHarmFreqs()
+        return self._HarmFreqs
 
     def pullWaterIdx(self):
         """ If the isotopologue type is 1 H2O, 5 D2O this sets the `wateridx` property to the appropriately
@@ -1281,17 +1468,17 @@ class BuildHexCage:
         waterNum = self.isotopologue[-1]
         if units == "degrees":
             if step == "0.5":
-                files = [os.path.join(self.WaterDir, f"w6c_Hw{waterNum}_m1.fchk"),
-                         os.path.join(self.WaterDir, f"w6c_Hw{waterNum}_m0.fchk"),
+                files = [os.path.join(self.WaterDir, f"w6c_Hw{waterNum}_m1_harm.fchk"),
+                         os.path.join(self.WaterDir, f"w6c_Hw{waterNum}_m0_harm.fchk"),
                          os.path.join(self.WaterDir, f"w6c_Hw{waterNum}.fchk"),
-                         os.path.join(self.WaterDir, f"w6c_Hw{waterNum}_p0.fchk"),
-                         os.path.join(self.WaterDir, f"w6c_Hw{waterNum}_p1.fchk")]
+                         os.path.join(self.WaterDir, f"w6c_Hw{waterNum}_p0_harm.fchk"),
+                         os.path.join(self.WaterDir, f"w6c_Hw{waterNum}_p1_harm.fchk")]
             elif step == "1":
-                files = [os.path.join(self.WaterDir, f"w6c_Hw{waterNum}_m3.fchk"),
-                         os.path.join(self.WaterDir, f"w6c_Hw{waterNum}_m1.fchk"),
+                files = [os.path.join(self.WaterDir, f"w6c_Hw{waterNum}_m3_harm.fchk"),
+                         os.path.join(self.WaterDir, f"w6c_Hw{waterNum}_m1_harm.fchk"),
                          os.path.join(self.WaterDir, f"w6c_Hw{waterNum}.fchk"),
-                         os.path.join(self.WaterDir, f"w6c_Hw{waterNum}_p1.fchk"),
-                         os.path.join(self.WaterDir, f"w6c_Hw{waterNum}_p3.fchk")]
+                         os.path.join(self.WaterDir, f"w6c_Hw{waterNum}_p1_harm.fchk"),
+                         os.path.join(self.WaterDir, f"w6c_Hw{waterNum}_p3_harm.fchk")]
             else:
                 raise Exception(f"Can find data with {units} units and {step} step size.")
         else:
@@ -1343,6 +1530,12 @@ class BuildHexCage:
         data_dict = {"R12": r12, "R23": r23, "HOH": angR}
         return data_dict
 
+    def pullHarmFreqs(self):
+        from NMParser import pull_block, format_freqs
+        dat = pull_block(self.eqlog)
+        freqs = format_freqs(dat)
+        return freqs
+
 class BuildHexPrism:
     def __init__(self, isotopologue=None, FDBstep=None):
         if isotopologue is None:
@@ -1355,9 +1548,11 @@ class BuildHexPrism:
         self._atomarray = None  # list of Atom names in the order of the Gaussian input/output
         self._massarray = None  # list of corresponding masses
         self._eqfchk = None  # path/filename of the data for the equilibrium structure (fchk of anharmonic calc)
+        self._eqlog = None
         self._EQcartesians = None  # all cartesian coordinates at the equilibrium for given isotopologue
         self._FDBdat = None  # dictionary of fchk data for angle scan of `self.FDBstep` degrees (5 pts)
         self._waterIntCoords = None  # dictionary of water internal coordinates (from eq fchk - all H)
+        self._HarmFreqs = None
 
     @property
     def ClusterDir(self):
@@ -1406,8 +1601,16 @@ class BuildHexPrism:
     @property
     def eqfchk(self):
         if self._eqfchk is None:
-            self._eqfchk = os.path.join(self.ClusterDir, f"w6p_allH.fchk")
+            waterNum = self.isotopologue[-1]
+            self._eqfchk = os.path.join(self.WaterDir, f"w6c_Hw{waterNum}.fchk")
         return self._eqfchk
+
+    @property
+    def eqlog(self):
+        if self._eqlog is None:
+            waterNum = self.isotopologue[-1]
+            self._eqlog = os.path.join(self.WaterDir, f"w6c_Hw{waterNum}.log")
+        return self._eqlog
 
     @property
     def EQcartesians(self):
@@ -1426,6 +1629,12 @@ class BuildHexPrism:
         if self._waterIntCoords is None:
             self._waterIntCoords = self.calcInternals()
         return self._waterIntCoords
+
+    @property
+    def HarmFreqs(self):
+        if self._HarmFreqs is None:
+            self._HarmFreqs = self.pullHarmFreqs()
+        return self._HarmFreqs
 
     def pullWaterIdx(self):
         """ If the isotopologue type is 1 H2O, 3 D2O this sets the `wateridx` property to the appropriately
@@ -1554,4 +1763,10 @@ class BuildHexPrism:
         angR = np.arccos(ang)
         data_dict = {"R12": r12, "R23": r23, "HOH": angR}
         return data_dict
+
+    def pullHarmFreqs(self):
+        from NMParser import pull_block, format_freqs
+        dat = pull_block(self.eqlog)
+        freqs = format_freqs(dat)
+        return freqs
 

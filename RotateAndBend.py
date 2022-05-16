@@ -143,22 +143,24 @@ def writeNewCoords(logfile, waterPos, theta_d, ang_arg, atom_str, newfile, bend_
 
 if __name__ == '__main__':
     docs = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    MoleculeDir = os.path.join(docs, "stretch_bend", "pentamer", "ring")
+    MoleculeDir = os.path.join(docs, "stretch_bend", "monomer")
+    monomer = ["H", "O", "H"]
+    mono_pos = [1, 0, 2]
     tet_cage = ["O", "O", "O", "O", "H", "H", "H", "H", "H", "H", "H", "H"]
     hexa = ["O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H"]
     penta = ["O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H"]
     water_pos = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [12, 13, 14], [15, 16, 17]]
     tet_pos = [[0, 4, 5], [1, 6, 7], [2, 8, 10], [3, 9, 11]]
-    bendMode = 28  # 35 for hexamer, 28 for pentamer, 21 for tet, 7 for di, 2 for monomer
-    for f in np.arange(1, 6):
+    bendMode = 2  # 35 for hexamer, 28 for pentamer, 21 for tet, 7 for di, 2 for monomer
+    for f in np.arange(1, 2):
         print(f)
-        log = os.path.join(MoleculeDir, f"w5r_Hw{f}.log")
+        log = os.path.join(MoleculeDir, "monomerF.log")  # f"w5r_Hw{f}.log")
         angArg = "Decrease"
-        pos = water_pos[f-1]
+        pos = mono_pos  # water_pos[f-1]
         for i, j in enumerate(np.arange(0.5, 2.5, 0.5)):
-            newFf = f"w5r_Hw{f}_m{i}.gjf"
-            writeNewCoords(log, pos, j, angArg, penta, newFf, bend_mode=bendMode, jobType="SP")
+            newFf = f"HOH_m{i}_anh.gjf"
+            writeNewCoords(log, pos, j, angArg, monomer, newFf, bend_mode=bendMode, jobType="Anharmonic")
         angArg2 = "Increase"
         for i, j in enumerate(np.arange(0.5, 2.5, 0.5)):
-            newFf = f"w5r_Hw{f}_p{i}.gjf"
-            writeNewCoords(log, pos, j, angArg2, penta, newFf, bend_mode=bendMode, jobType="SP")
+            newFf = f"HOH_p{i}_anh.gjf"
+            writeNewCoords(log, pos, j, angArg2, monomer, newFf, bend_mode=bendMode, jobType="Anharmonic")

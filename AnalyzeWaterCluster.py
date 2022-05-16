@@ -6,11 +6,12 @@ from GmatrixElements import GmatrixStretchBend
 class AnalyzeOneWaterCluster:
     def __init__(self, ClusterObj):
         self.ClusterObj = ClusterObj
-        self._Gphiphi = None  # G-matrix element of bend at equilibrium (calc'ed using GmatrixHOH)
+        self._Gphiphi = None  # G-matrix element of bend at equilibrium (calc'ed using GmatrixStretchBend)
+        self._Grr = None  # G-matrix element of stretch at equilibrium (calc'ed using GmatrixStretchBend)
         self._FDFrequency = None  # uses 2nd deriv of five point FD and g-matrix to calculate frequency (wavenumbers)
         self._FDIntensity = None  # uses 1st deriv of five point FD and g-matrix to calculate bend intensity (?)
-        self._StretchDipoleDerivs = None
-        self._StetchFrequency = None
+        self._StretchDipoleDerivs = None  # returns SB derivative for both OHs
+        self._StretchFrequency = None
         self._SBGmatrix = None
         self._StretchBendIntensity = None
 
@@ -25,6 +26,13 @@ class AnalyzeOneWaterCluster:
                                                             r23=self.ClusterObj.waterIntCoords["R23"],
                                                             phi123=self.ClusterObj.waterIntCoords["HOH"])
         return self._Gphiphi
+
+    @property
+    def Grr(self):
+        if self._Grr is None:
+            self._Grr = GmatrixStretchBend.calc_Grr(m1=Constants.mass("O", to_AU=True),
+                                                    m2=Constants.mass("H", to_AU=True))
+        return self._Grr
 
     @property
     def FDFrequency(self):
@@ -45,10 +53,10 @@ class AnalyzeOneWaterCluster:
         return self._StretchDipoleDerivs
 
     @property
-    def StetchFrequency(self):
-        if self._StetchFrequency is None:
-            self._StetchFrequency = self.calc_StetchFrequency()
-        return self._StetchFrequency
+    def StretchFrequency(self):
+        if self._StretchFrequency is None:
+            self._StretchFrequency = self.calc_StretchFrequency()
+        return self._StretchFrequency
 
     @property
     def SBGmatrix(self):
@@ -66,7 +74,7 @@ class AnalyzeOneWaterCluster:
         from McUtils.Zachary import finite_difference
         HOH = self.ClusterObj.FDBdat["HOH Angles"]
         ens = self.ClusterObj.FDBdat["Energies"]
-        print(Constants.convert(ens - min(ens), "wavenumbers", to_AU=False))
+        # print(Constants.convert(ens - min(ens), "wavenumbers", to_AU=False))
         deriv = finite_difference(HOH, ens, 2, stencil=5, only_center=True)
         # derivative in hartree/radian^2
         return deriv
@@ -79,10 +87,11 @@ class AnalyzeOneWaterCluster:
     def calc_FDFrequency(self):
         # calc derivative of potential
         deriv = self.calc_PotentialDerivatives()
-        print(deriv)
+        # print(deriv)
         # use g-matrix to calculate the frequency
         freq = np.sqrt(deriv * self.Gphiphi)
-        return Constants.convert(freq, "wavenumbers", to_AU=False)
+        # return Constants.convert(freq, "wavenumbers", to_AU=False)
+        return freq
 
     def calc_FDIntensity(self):
         from McUtils.Zachary import finite_difference
@@ -98,17 +107,36 @@ class AnalyzeOneWaterCluster:
         return intensity
 
     def calc_StretchDipoleDerivs(self):
-        # something about this is not right.. dropping for now and stepping back to H2O and (H2O)2 4/14
-        # pull 9 dip derivs for each atom in Water O, H1, H2
-        dip_deriv = self.ClusterObj.FDBdat["Dipole Derivatives"][:, self.ClusterObj.wateridx, :]
+        from McUtils.Zachary import finite_difference
+        # O H H ordered
+        dip_deriv = self.ClusterObj.FDBdat["RotDipoleDerivatives"][:, self.ClusterObj.wateridx, :]  # in A.U.
         # pull carts for each atom in Water O, H1, H2
-        Wcarts = self.ClusterObj.FDBdat["Cartesians"][:, self.ClusterObj.wateridx, :]
-        H1_deriv = np.dot(dip_deriv[:, 1, :], ((Wcarts[1] - Wcarts[0]) / self.ClusterObj.FDBdat["R12"]))
-        return dip_deriv
+        Wcarts = self.ClusterObj.FDBdat["RotCartesians"][:, self.ClusterObj.wateridx, :]
+        H1_deriv = np.zeros((5, 3))  # this will store d mu_(x, y, z) / d roh in each FD step
+        H2_deriv = np.zeros((5, 3))
+        for n, step in enumerate(Wcarts):
+            for i, comp in enumerate(["X", "Y", "Z"]):  # x,y,z of dipole
+                # start = (2*i)+i
+                derivComp = np.arange(i, i+9, 3)
+                for idx, j in enumerate(derivComp):  # x,y,z of derivative
+                    OHterm1 = (step[1, idx] - step[0, idx]) / self.ClusterObj.FDBdat["R12"][n]  # unitless
+                    OHterm2 = (step[2, idx] - step[0, idx]) / self.ClusterObj.FDBdat["R23"][n]
+                    H1_deriv[n, i] += (dip_deriv[n, 1, j] - dip_deriv[n, 0, j]) * OHterm1
+                    H2_deriv[n, i] += (dip_deriv[n, 2, j] - dip_deriv[n, 0, j]) * OHterm2
+        SB1deriv = np.zeros(3)
+        SB2deriv = np.zeros(3)
+        for j, comp in enumerate(["X", "Y", "Z"]):  # store SB derivative as components
+            SB1deriv[j] = finite_difference(self.ClusterObj.FDBdat["HOH Angles"], H1_deriv[:, j], 1, stencil=5, only_center=True)
+            SB2deriv[j] = finite_difference(self.ClusterObj.FDBdat["HOH Angles"], H2_deriv[:, j], 1, stencil=5, only_center=True)
+        print(SB1deriv, SB2deriv)
+        return SB1deriv, SB2deriv  # D / Ang * amu^1/2
 
-    def calc_StetchFrequency(self):
-        freq = ...
-        return freq
+    def calc_StretchFrequency(self):
+        # for now pull (highest) Harmonic stretch frequency
+        freq = np.sqrt(self.ClusterObj.HarmFreqs[-1] * self.ClusterObj.HarmFreqs[-2])
+        # freq = self.ClusterObj.HarmFreqs[-1] for everything else asym OH
+        freq2 = Constants.convert(freq, "wavenumbers", to_AU=True)
+        return freq2
 
     def calcSBgmatrix(self):
         Grr = GmatrixStretchBend.calc_Grr(m1=Constants.mass("O", to_AU=True), m2=Constants.mass("H", to_AU=True))
@@ -126,7 +154,18 @@ class AnalyzeOneWaterCluster:
         return Gmat
 
     def calc_StretchBendIntensity(self):
-        intents = ...
-        return intents
+        # frequencies in au
+        deltaR = (1/2) * self.Grr / self.StretchFrequency
+        deltaT = (1/2) * self.Gphiphi / self.FDFrequency
+        freq = deltaT * deltaR * (self.StretchFrequency + self.FDFrequency)
+        freq_wave = Constants.convert(freq, "wavenumbers", to_AU=False)
+        intensities = np.zeros(2)
+        for i, deriv in enumerate(self.StretchDipoleDerivs):
+            comps = np.zeros(3)
+            for j, val in enumerate(["X", "Y", "Z"]):
+                # deriv in AU
+                comps[j] = (abs(deriv[j])**2 / (0.393456**2)) * freq_wave * 2.506
+            intensities[i] = np.sum(comps)
+        return intensities
 
 

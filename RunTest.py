@@ -3,15 +3,15 @@ from AnalyzeWaterCluster import AnalyzeOneWaterCluster
 from NormalModes import *
 
 # water4 = BuildTetCage(isotopologue="Hw2", FDBstep="1")
-# monomer = BuildMonomer()
-# dimer = BuildDimer(isotopologue="Hw1", FDBstep="0.5")
+monomer = BuildMonomer()
+dimer = BuildDimer(isotopologue="Hw1", FDBstep="0.5")
 # water2 = BuildTetThreeOne(isotopologue="Hw4", FDBstep="0.5")
 # print(water2.waterIntCoords["HOH"] * (180/np.pi))
-water5 = BuildPentCage(isotopologue="Hw5", FDBstep="1")
-analyzeObj = AnalyzeOneWaterCluster(ClusterObj=water5)
-# a = analyzeObj.StretchDipoleDerivs
-print("FD: ", analyzeObj.FDFrequency)
-print("FD: ", analyzeObj.FDIntensity)
+# water5 = BuildPentCage(isotopologue="Hw5", FDBstep="1")
+analyzeObj = AnalyzeOneWaterCluster(ClusterObj=monomer)
+print(analyzeObj.StretchBendIntensity)
+# print("FD: ", analyzeObj.FDFrequency)
+# print("FD: ", analyzeObj.FDIntensity)
 
 # ham = mass_weight(monomer.Fchkdat.hessian, monomer.massarray, num_coord=(3*3))
 # nm = norms(ham)
