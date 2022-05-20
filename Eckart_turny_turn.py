@@ -1,4 +1,5 @@
 import numpy as np
+import scipy
 
 
 class EckartsSpinz:
@@ -97,8 +98,11 @@ class EckartsSpinz:
             self.f_vecs = np.matmul(self.little_fs, big_F_m1o2)
             mas = np.where(np.around(np.linalg.det(self.f_vecs)) == -1)
             if len(mas[0]) != 0:
-                print("well, something's wrong")
-                raise ValueError
+                self.f_vecs[mas, :, 2] *= -1
+                mas2 = np.where(np.around(np.linalg.det(self.f_vecs)) == -1)
+                if len(mas2[0]) != 0:
+                    print("well, something's wrong")
+                    raise ValueError
         else:
             self.f_vecs[:, :, self._indz] = np.matmul(self.little_fs, big_F_m1o2)
             if self._missing_ind[0] == 1:  # f_3 is equal to f_z cross f_x

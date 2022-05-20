@@ -2,14 +2,15 @@ from BuildWaterCluster import *
 from AnalyzeWaterCluster import AnalyzeOneWaterCluster
 from NormalModes import *
 
-# water4 = BuildTetCage(isotopologue="Hw2", FDBstep="1")
-monomer = BuildMonomer()
-dimer = BuildDimer(isotopologue="Hw1", FDBstep="0.5")
-# water2 = BuildTetThreeOne(isotopologue="Hw4", FDBstep="0.5")
+# water4 = BuildTetCage(num_waters=4, isotopologue="Hw4", FDBstep="0.5")
+# monomer = BuildMonomer()
+# dimer = BuildDimer(num_waters=2, isotopologue="Hw2", FDBstep="0.5")
+# water31 = BuildTetThreeOne(num_waters=4, isotopologue="Hw2", FDBstep="0.5")
 # print(water2.waterIntCoords["HOH"] * (180/np.pi))
-# water5 = BuildPentCage(isotopologue="Hw5", FDBstep="1")
-analyzeObj = AnalyzeOneWaterCluster(ClusterObj=monomer)
+water5 = BuildPentRing(num_waters=5, isotopologue="Hw5", FDBstep="0.5")
+analyzeObj = AnalyzeOneWaterCluster(ClusterObj=water5)
 print(analyzeObj.StretchBendIntensity)
+print(analyzeObj.calc_StretchIntensity())
 # print("FD: ", analyzeObj.FDFrequency)
 # print("FD: ", analyzeObj.FDIntensity)
 

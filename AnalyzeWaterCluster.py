@@ -75,7 +75,7 @@ class AnalyzeOneWaterCluster:
         HOH = self.ClusterObj.FDBdat["HOH Angles"]
         ens = self.ClusterObj.FDBdat["Energies"]
         # print(Constants.convert(ens - min(ens), "wavenumbers", to_AU=False))
-        deriv = finite_difference(HOH, ens, 2, stencil=5, only_center=True)
+        deriv = finite_difference(HOH, ens, 2, stencil=len(HOH), only_center=True)
         # derivative in hartree/radian^2
         return deriv
 
@@ -99,7 +99,7 @@ class AnalyzeOneWaterCluster:
         comp_intents = np.zeros(3)
         for i, val in enumerate(["X", "Y", "Z"]):
             derivs[i] = finite_difference(self.ClusterObj.FDBdat["HOH Angles"], self.ClusterObj.FDBdat["Dipoles"][:, i],
-                                          1, stencil=5, only_center=True)
+                                          1, stencil=len(self.ClusterObj.FDBdat["HOH Angles"]), only_center=True)
             #  electron charge * bohr /radians
             Gphiphi_wave = Constants.convert(self.Gphiphi, "wavenumbers", to_AU=False)
             comp_intents[i] = (abs(derivs[i])**2 / (0.393456 ** 2)) * ((1/2) * Gphiphi_wave) * 2.506
@@ -109,34 +109,55 @@ class AnalyzeOneWaterCluster:
     def calc_StretchDipoleDerivs(self):
         from McUtils.Zachary import finite_difference
         # O H H ordered
-        dip_deriv = self.ClusterObj.FDBdat["RotDipoleDerivatives"][:, self.ClusterObj.wateridx, :]  # in A.U.
+        dip_deriv = self.ClusterObj.FDBdat["RotDipoleDerivatives"]  # in A.U.
         # pull carts for each atom in Water O, H1, H2
-        Wcarts = self.ClusterObj.FDBdat["RotCartesians"][:, self.ClusterObj.wateridx, :]
+        carts = self.ClusterObj.FDBdat["RotCartesians"]
+        R1plus = self.ClusterObj.FDBdat["RotR1plus"]
+        R1minus = self.ClusterObj.FDBdat["RotR1minus"]
+        R2plus = self.ClusterObj.FDBdat["RotR2plus"]
+        R2minus = self.ClusterObj.FDBdat["RotR2minus"]
         H1_deriv = np.zeros((5, 3))  # this will store d mu_(x, y, z) / d roh in each FD step
         H2_deriv = np.zeros((5, 3))
-        for n, step in enumerate(Wcarts):
-            for i, comp in enumerate(["X", "Y", "Z"]):  # x,y,z of dipole
-                # start = (2*i)+i
-                derivComp = np.arange(i, i+9, 3)
-                for idx, j in enumerate(derivComp):  # x,y,z of derivative
-                    OHterm1 = (step[1, idx] - step[0, idx]) / self.ClusterObj.FDBdat["R12"][n]  # unitless
-                    OHterm2 = (step[2, idx] - step[0, idx]) / self.ClusterObj.FDBdat["R23"][n]
-                    H1_deriv[n, i] += (dip_deriv[n, 1, j] - dip_deriv[n, 0, j]) * OHterm1
-                    H2_deriv[n, i] += (dip_deriv[n, 2, j] - dip_deriv[n, 0, j]) * OHterm2
+        for n, step in enumerate(carts):
+            dXdR1 = (R1plus[n] - R1minus[n]) / (2 * self.ClusterObj.FDBdat["delta"])
+            dXdR2 = (R2plus[n] - R2minus[n]) / (2 * self.ClusterObj.FDBdat["delta"])
+            H1_deriv[n, :] = np.tensordot(dXdR1, dip_deriv[n], axes=[[0, 1], [0, 1]])
+            H2_deriv[n, :] = np.tensordot(dXdR2, dip_deriv[n], axes=[[0, 1], [0, 1]])
         SB1deriv = np.zeros(3)
         SB2deriv = np.zeros(3)
         for j, comp in enumerate(["X", "Y", "Z"]):  # store SB derivative as components
-            SB1deriv[j] = finite_difference(self.ClusterObj.FDBdat["HOH Angles"], H1_deriv[:, j], 1, stencil=5, only_center=True)
-            SB2deriv[j] = finite_difference(self.ClusterObj.FDBdat["HOH Angles"], H2_deriv[:, j], 1, stencil=5, only_center=True)
-        print(SB1deriv, SB2deriv)
+            SB1deriv[j] = finite_difference(self.ClusterObj.FDBdat["HOH Angles"], H1_deriv[:, j], 1,
+                                            stencil=len(self.ClusterObj.FDBdat["HOH Angles"]), only_center=True)
+            SB2deriv[j] = finite_difference(self.ClusterObj.FDBdat["HOH Angles"], H2_deriv[:, j], 1,
+                                            stencil=len(self.ClusterObj.FDBdat["HOH Angles"]), only_center=True)
+        self.H1_deriv = H1_deriv
+        self.H2_deriv = H2_deriv
+        # print(SB1deriv, SB2deriv)
         return SB1deriv, SB2deriv  # D / Ang * amu^1/2
 
     def calc_StretchFrequency(self):
-        # for now pull (highest) Harmonic stretch frequency
-        freq = np.sqrt(self.ClusterObj.HarmFreqs[-1] * self.ClusterObj.HarmFreqs[-2])
-        # freq = self.ClusterObj.HarmFreqs[-1] for everything else asym OH
-        freq2 = Constants.convert(freq, "wavenumbers", to_AU=True)
-        return freq2
+        # uses the harmonic displacements to determine which OH stretch frequency corresponds to
+        # which OH in the wateridx
+        # call two largest freqs and their disps
+        freqs = np.flip(self.ClusterObj.HarmFreqs)
+        OH_disps = np.flip(self.ClusterObj.HarmDisps[-2:], axis=0)
+        OH_freqs = np.zeros(2)  # 1 x number of OH disps (2) array
+        for i, mode in enumerate(OH_disps):
+            OH_normDisps = np.linalg.norm(mode, axis=1)  # take the norm of the x, y, z displacements for each atom
+            sort_idx = np.argsort(OH_normDisps)
+            sort_disps = OH_normDisps[sort_idx]
+            disps_diff = sort_disps[-1] - sort_disps[-2]
+            if disps_diff <= 0.2:
+                print(f"Harmonic Displacements are only {disps_diff} different, using geometric mean of OH stretches.")
+                OH_freqs[i] = np.sqrt(freqs[0] * freqs[1])  # always two highest freqs
+            elif sort_idx[-1] == self.ClusterObj.wateridx[1]:  # check if largest displacement is of H1
+                OH_freqs[0] = freqs[i]
+            elif sort_idx[-1] == self.ClusterObj.wateridx[2]:  # check if largest displacement is of H2
+                OH_freqs[1] = freqs[i]
+            else:
+                raise Exception(f"Atom {sort_idx[-1]} is neither H1 or H2.")
+        freqs_AU = Constants.convert(OH_freqs, "wavenumbers", to_AU=True)  # return frequencies in AU
+        return freqs_AU
 
     def calcSBgmatrix(self):
         Grr = GmatrixStretchBend.calc_Grr(m1=Constants.mass("O", to_AU=True), m2=Constants.mass("H", to_AU=True))
@@ -153,18 +174,32 @@ class AnalyzeOneWaterCluster:
                         [Grphi, Grphi, self.Gphiphi]])
         return Gmat
 
-    def calc_StretchBendIntensity(self):
+    def calc_StretchIntensity(self):
+        # BAD BAD BAD
         # frequencies in au
-        deltaR = (1/2) * self.Grr / self.StretchFrequency
-        deltaT = (1/2) * self.Gphiphi / self.FDFrequency
-        freq = deltaT * deltaR * (self.StretchFrequency + self.FDFrequency)
-        freq_wave = Constants.convert(freq, "wavenumbers", to_AU=False)
         intensities = np.zeros(2)
-        for i, deriv in enumerate(self.StretchDipoleDerivs):
+        Grr_wave = Constants.convert(self.Grr, "wavenumbers", to_AU=False)
+        for i, deriv in enumerate([self.H1_deriv[2], self.H2_deriv[2]]):
             comps = np.zeros(3)
             for j, val in enumerate(["X", "Y", "Z"]):
                 # deriv in AU
-                comps[j] = (abs(deriv[j])**2 / (0.393456**2)) * freq_wave * 2.506
+                comps[j] = ((abs(deriv[j])**2) / (0.393456 ** 2)) * ((1/2) * Grr_wave) * 2.506
+            intensities[i] = np.sum(comps)
+        return intensities
+
+    def calc_StretchBendIntensity(self):
+        # frequencies in au
+        deltaT = (1/2) * self.Gphiphi / self.FDFrequency
+        intensities = np.zeros(2)
+        for i, deriv in enumerate(self.StretchDipoleDerivs):
+            print(Constants.convert(self.StretchFrequency[i], "wavenumbers", to_AU=False))
+            deltaR = (1 / 2) * self.Grr / self.StretchFrequency[i]
+            freq = deltaT * deltaR * (self.StretchFrequency[i] + self.FDFrequency)
+            freq_wave = Constants.convert(freq, "wavenumbers", to_AU=False)
+            comps = np.zeros(3)
+            for j, val in enumerate(["X", "Y", "Z"]):
+                # deriv in AU
+                comps[j] = ((abs(deriv[j])**2) / (0.393456 ** 2)) * freq_wave * 2.506
             intensities[i] = np.sum(comps)
         return intensities
 

@@ -88,7 +88,7 @@ def format_I(block):
     intents = np.array(intents).flatten()
     return intents
 
-def format_disps(logfile):
+def format_disps(block):
     """
     Formats Harmonic Normal Mode Displacements from log file into a n-modes X n-atoms X 3 (X Y Z) array
     :param block: Result of `pull_block`
@@ -96,7 +96,6 @@ def format_disps(logfile):
     :return: `disps` n-modes X n-atoms X 3 (X Y Z)
     :rtype: np.array
     """
-    block = pull_block(logfile)
     lines = block.splitlines(False)
     disps = []
     disp_array1 = None
@@ -171,7 +170,7 @@ if __name__ == '__main__':
     MoleculeDir = os.path.join(docs, "stretch_bend", "hexamer_dz", "cage")
     f1 = os.path.join(MoleculeDir, "w6c_allH.log")
     a, VPTdat = pull_VPTblock(f1)
-    # disps = format_disps(f1)  # edited to parse logfile as well
+    # disps = format_disps(f1)  # edited to parse logfile as well - changed back to block for consistency (5/18)
     # freqs = format_freqs(b)
     # intens = format_I(b)
     # # filename = os.path.join(MoleculeDir, "Hw4_NMdisps.csv")
