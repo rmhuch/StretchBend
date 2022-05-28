@@ -14,6 +14,7 @@ class AnalyzeOneWaterCluster:
         self._StretchFrequency = None
         self._SBGmatrix = None
         self._StretchBendIntensity = None
+        self._ResultsDict = None
 
     @property
     def Gphiphi(self):
@@ -98,7 +99,7 @@ class AnalyzeOneWaterCluster:
         derivs = np.zeros(3)
         comp_intents = np.zeros(3)
         for i, val in enumerate(["X", "Y", "Z"]):
-            derivs[i] = finite_difference(self.ClusterObj.FDBdat["HOH Angles"], self.ClusterObj.FDBdat["Dipoles"][:, i],
+            derivs[i] = finite_difference(self.ClusterObj.FDBdat["HOH Angles"], self.ClusterObj.FDBdat["RotDipoles"][:, i],
                                           1, stencil=len(self.ClusterObj.FDBdat["HOH Angles"]), only_center=True)
             #  electron charge * bohr /radians
             Gphiphi_wave = Constants.convert(self.Gphiphi, "wavenumbers", to_AU=False)
@@ -132,7 +133,6 @@ class AnalyzeOneWaterCluster:
                                             stencil=len(self.ClusterObj.FDBdat["HOH Angles"]), only_center=True)
         self.H1_deriv = H1_deriv
         self.H2_deriv = H2_deriv
-        # print(SB1deriv, SB2deriv)
         return SB1deriv, SB2deriv  # D / Ang * amu^1/2
 
     def calc_StretchFrequency(self):
@@ -147,6 +147,7 @@ class AnalyzeOneWaterCluster:
             sort_idx = np.argsort(OH_normDisps)
             sort_disps = OH_normDisps[sort_idx]
             disps_diff = sort_disps[-1] - sort_disps[-2]
+            # print(sort_disps[-2], sort_disps[-1])
             if disps_diff <= 0.2:
                 print(f"Harmonic Displacements are only {disps_diff} different, using geometric mean of OH stretches.")
                 OH_freqs[i] = np.sqrt(freqs[0] * freqs[1])  # always two highest freqs
@@ -175,7 +176,6 @@ class AnalyzeOneWaterCluster:
         return Gmat
 
     def calc_StretchIntensity(self):
-        # BAD BAD BAD
         # frequencies in au
         intensities = np.zeros(2)
         Grr_wave = Constants.convert(self.Grr, "wavenumbers", to_AU=False)

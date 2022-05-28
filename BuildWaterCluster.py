@@ -85,8 +85,8 @@ class BuildWaterCluster:
         RotDict["RotDipoles"] = RotDips
         RotDipDerivs = np.zeros_like((FDBdat["Dipole Derivatives"]))
         for i, step in enumerate(FDBdat["Dipole Derivatives"]):  # rotate dipole derivatives
-            rot1 = np.tensordot(step, EckObjCarts.TransformMat[i], axes=[1, 1])  # first rotate by cartesian (x, y, z)
-            rot2 = np.tensordot(rot1, EckObjCarts.TransformMat[i], axes=[1, 1])  # then rotate dipole (x, y, z)
+            rot1 = np.tensordot(step, EckObjCarts.TransformMat[i], axes=[1, 0])  # first rotate by cartesian (x, y, z)
+            rot2 = np.tensordot(rot1, EckObjCarts.TransformMat[i], axes=[1, 0])  # then rotate dipole (x, y, z)
             RotDipDerivs[i] = rot2
         RotDict["RotDipoleDerivatives"] = RotDipDerivs
         return RotDict
@@ -167,6 +167,15 @@ class BuildWaterCluster:
         from NMParser import pull_block, format_freqs, format_disps
         dat = pull_block(logfile)
         freqs = format_freqs(dat)
+        disps = format_disps(dat)
+        return freqs, disps
+
+    @staticmethod
+    def pullVPT2Freqs(logfile):
+        from NMParser import pull_block, pull_VPTblock, format_disps
+        dat = pull_block(logfile)
+        harm, vpt = pull_VPTblock(logfile)
+        freqs = vpt[:, 0]
         disps = format_disps(dat)
         return freqs, disps
 

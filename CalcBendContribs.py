@@ -1,6 +1,6 @@
 import numpy as np
 from BendAxes import calcAxes
-from NMParser import format_disps
+from NMParser import format_dispsL
 from NormalModes import calc_disps
 import os
 import csv
@@ -18,7 +18,7 @@ def calcWaterContribs(water_pos, logfile=None, fchkfile=None):
     :rtype:tuple of np arrays
     """
     if logfile is not None:
-        NMdisps = format_disps(logfile)
+        NMdisps = format_dispsL(logfile)
     elif fchkfile is not None:
         NMdisps = calc_disps(fchkfile, water_pos)
     else:

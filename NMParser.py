@@ -134,6 +134,53 @@ def format_disps(block):
     disps = np.array(disps)
     return disps
 
+def format_dispsL(logfile):
+    """
+    Formats Harmonic Normal Mode Displacements from log file into a n-modes X n-atoms X 3 (X Y Z) array
+    :param logfile: the logfile holding the normal mode displacements (DO NOT EDIT - used in RotateAndBend.py)
+    :type logfile: str
+    :return: `disps` n-modes X n-atoms X 3 (X Y Z)
+    :rtype: np.array
+    """
+    block = pull_block(logfile)
+    lines = block.splitlines(False)
+    disps = []
+    disp_array1 = None
+    disp_array2 = None
+    disp_array3 = None
+    in_modes = False
+    for l in lines:
+        if "Atom" in l:
+            in_modes = True
+            disp_array1 = []
+            disp_array2 = []
+            disp_array3 = []
+        elif in_modes:  # check to make sure we are still capturing data
+            split_line = l.split()
+            if len(split_line) < 5:
+                disps.append(disp_array1)
+                if len(disp_array2) > 0:
+                    disps.append(disp_array2)
+                if len(disp_array3) > 0:
+                    disps.append(disp_array3)
+                in_modes = False  # means we have captured all displacements
+            else:
+                try:
+                    int(split_line[0])
+                except TypeError:
+                    in_modes = False  # means we have captured all displacements
+                else:
+                    in_modes = True
+            if in_modes:
+                comps = [float(x) for x in l.split()[2:]]
+                if len(comps) > 8:
+                    disp_array3.append(comps[6:9])
+                if len(comps) > 3:
+                    disp_array2.append(comps[3:6])
+                disp_array1.append(comps[:3])
+    disps = np.array(disps)
+    return disps
+
 def calcMaxDisps(disps_array, freqs, filename):
     """
     Takes the stack of NM displacements, calculate the displacement magnitude then determine
