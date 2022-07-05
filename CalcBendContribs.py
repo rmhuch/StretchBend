@@ -33,9 +33,8 @@ def calcWaterContribs(water_pos, logfile=None, fchkfile=None):
 def calcBendScaling(logfile, water_pos, bend_mode=None):
     H1_proj, H2_proj = calcWaterContribs(water_pos=water_pos, logfile=logfile)
     H1val = abs(H1_proj[bend_mode, 2])
-    # print(H1val)
     H2val = abs(H2_proj[bend_mode, 2])
-    # print(H2val)
+    # print(H1val, H2val)
     norm_proj = H1val + H2val
     h1scale = H1val / norm_proj
     h2scale = H2val / norm_proj
@@ -50,16 +49,27 @@ def writeResults(resfile, logfile, water_pos):
 
 if __name__ == '__main__':
     docs = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    MoleculeDir = os.path.join(docs, "stretch_bend", "tetramer_16", "three_one")
-    f1 = os.path.join(MoleculeDir, "w4t_Hw1.log")
-    f2 = os.path.join(MoleculeDir, "w4t_Hw2.log")
-    f3 = os.path.join(MoleculeDir, "w4t_Hw3.log")
-    f4 = os.path.join(MoleculeDir, "w4t_Hw4.log")
-    w1 = [0, 3, 4]
-    w2 = [1, 5, 6]
-    w3 = [2, 7, 8]
-    w4 = [9, 10, 11]
-    writeResults(os.path.join(MoleculeDir, "ProjectionDisps_w1_H.csv"), f1, w1)
-    writeResults(os.path.join(MoleculeDir, "ProjectionDisps_w2_H.csv"), f2, w2)
-    writeResults(os.path.join(MoleculeDir, "ProjectionDisps_w3_H.csv"), f3, w3)
-    writeResults(os.path.join(MoleculeDir, "ProjectionDisps_w4_H.csv"), f4, w4)
+    MoleculeDir = os.path.join(docs, "stretch_bend", "tetramer_16", "cage")
+    # f1 = os.path.join(MoleculeDir, "w4t_Hw1.log")
+    # f2 = os.path.join(MoleculeDir, "w4t_Hw2.log")
+    # f3 = os.path.join(MoleculeDir, "w4t_Hw3.log")
+    # f4 = os.path.join(MoleculeDir, "w4t_Hw4.log")
+    # w1 = [0, 3, 4]
+    # w2 = [1, 5, 6]
+    # w3 = [2, 7, 8]
+    # w4 = [9, 10, 11]
+    # writeResults(os.path.join(MoleculeDir, "ProjectionDisps_w1_H.csv"), f1, w1)
+    # writeResults(os.path.join(MoleculeDir, "ProjectionDisps_w2_H.csv"), f2, w2)
+    # writeResults(os.path.join(MoleculeDir, "ProjectionDisps_w3_H.csv"), f3, w3)
+    # writeResults(os.path.join(MoleculeDir, "ProjectionDisps_w4_H.csv"), f4, w4)
+    files = ["w6c_oneH1.log", "w6c_oneH2.log", "w6c_oneH3.log", "w6c_oneH4.log", "w6c_oneH5.log", "w6c_oneH6.log",
+             "w6c_oneH7.log", "w6c_oneH8.log", "w6c_oneH9.log", "w6c_oneH10.log", "w6c_oneH_bound.log", "w6c_oneH.log"]
+    water_pos = [[0, 1, 2], [0, 1, 2], [3, 4, 5], [3, 4, 5], [6, 7, 8], [6, 7, 8], [9, 10, 11], [9, 10, 11],
+                 [12, 13, 14], [12, 13, 14], [15, 16, 17], [15, 16, 17]]
+    tet_files = ["w4c_oneH.log", "w4c_oneH_bound.log", "w4c_oneH3.log", "w4c_oneHA.log", "w4c_oneH5.log",
+                 "w4c_oneH7.log", "w4c_oneH6.log", "w4c_oneH8.log"]
+    tet_pos = [[0, 4, 5], [0, 4, 5], [1, 6, 7], [1, 6, 7], [2, 8, 10], [2, 8, 10], [3, 9, 11], [3, 9, 11]]
+    for i, f in enumerate(tet_files):
+        print(f)
+        h1, h2 = calcBendScaling(os.path.join(MoleculeDir, f), tet_pos[i], bend_mode=21)
+        print(h1, h2)

@@ -4,13 +4,15 @@ from Converter import Constants
 from GmatrixElements import GmatrixStretchBend
 
 class AnalyzeOneWaterCluster:
-    def __init__(self, ClusterObj):
+    def __init__(self, ClusterObj, markVPT2derivs=False):
         self.ClusterObj = ClusterObj
+        self.markVPT2derivs = markVPT2derivs  # use results from mark's VPT2 to calculate SB Intensity
         self._Gphiphi = None  # G-matrix element of bend at equilibrium (calc'ed using GmatrixStretchBend)
         self._Grr = None  # G-matrix element of stretch at equilibrium (calc'ed using GmatrixStretchBend)
         self._FDFrequency = None  # uses 2nd deriv of five point FD and g-matrix to calculate frequency (wavenumbers)
         self._FDIntensity = None  # uses 1st deriv of five point FD and g-matrix to calculate bend intensity (?)
-        self._StretchDipoleDerivs = None  # returns SB derivative for both OHs
+        self._StretchDipoleDerivs = None  # returns Stretch derivative (at the equilibrium) for both OHs
+        self._SBDipoleDerivs = None  # returns Stretch-Bend derivatives for both OHs
         self._StretchFrequency = None
         self._SBGmatrix = None
         self._StretchBendIntensity = None
@@ -20,12 +22,20 @@ class AnalyzeOneWaterCluster:
     def Gphiphi(self):
         if self._Gphiphi is None:
             # masses are hard coded so that this plays nice with monomer (H, O, H) and tetramer (O, H, H)
-            self._Gphiphi = GmatrixStretchBend.calc_Gphiphi(m1=Constants.mass("H", to_AU=True),
-                                                            m2=Constants.mass("O", to_AU=True),
-                                                            m3=Constants.mass("H", to_AU=True),
-                                                            r12=self.ClusterObj.waterIntCoords["R12"],
-                                                            r23=self.ClusterObj.waterIntCoords["R23"],
-                                                            phi123=self.ClusterObj.waterIntCoords["HOH"])
+            if self.ClusterObj.num_waters == 1 or self.ClusterObj.isotopologue.find("w") > 0:
+                self._Gphiphi = GmatrixStretchBend.calc_Gphiphi(m1=Constants.mass("H", to_AU=True),
+                                                                m2=Constants.mass("O", to_AU=True),
+                                                                m3=Constants.mass("H", to_AU=True),
+                                                                r12=self.ClusterObj.waterIntCoords["R12"],
+                                                                r23=self.ClusterObj.waterIntCoords["R23"],
+                                                                phi123=self.ClusterObj.waterIntCoords["HOH"])
+            else:
+                self._Gphiphi = GmatrixStretchBend.calc_Gphiphi(m1=Constants.mass("H", to_AU=True),
+                                                                m2=Constants.mass("O", to_AU=True),
+                                                                m3=Constants.mass("D", to_AU=True),
+                                                                r12=self.ClusterObj.waterIntCoords["R12"],
+                                                                r23=self.ClusterObj.waterIntCoords["R23"],
+                                                                phi123=self.ClusterObj.waterIntCoords["HOH"])
         return self._Gphiphi
 
     @property
@@ -50,8 +60,27 @@ class AnalyzeOneWaterCluster:
     @property
     def StretchDipoleDerivs(self):
         if self._StretchDipoleDerivs is None:
-            self._StretchDipoleDerivs = self.calc_StretchDipoleDerivs()
+            self._StretchDipoleDerivs, self._SBDipoleDerivs = self.calc_SBDipoleDerivs()
         return self._StretchDipoleDerivs
+
+    @property
+    def SBDipoleDerivs(self):
+        if self._SBDipoleDerivs is None:
+            if self.markVPT2derivs is False:
+                self._StretchDipoleDerivs, self._SBDipoleDerivs = self.calc_SBDipoleDerivs()
+            elif self.markVPT2derivs == "DMS":
+                if self.ClusterObj.waterNum == "1":
+                    self._SBDipoleDerivs = [[1.14695047e-04, -6.64265634e-03, -4.19947281e-04],
+                                            [-4.20461606e-04, 1.31275845e-02, 1.16267494e-03]]
+                else:
+                    raise Exception(f"Can't find water {self.ClusterObj.waterNum} {self.markVPT2derivs} Dipole Derivs")
+            elif self.markVPT2derivs == "DMS+PES":
+                if self.ClusterObj.waterNum == "1":
+                    self._SBDipoleDerivs = [[6.3285e-05, -6.936547e-03, -1.36237e-03],
+                                            [-3.31068e-04, 9.274388e-03, 2.22019e-04]]
+                else:
+                    raise Exception(f"Can't find water {self.ClusterObj.waterNum} {self.markVPT2derivs} Dipole Derivs")
+        return self._SBDipoleDerivs
 
     @property
     def StretchFrequency(self):
@@ -107,7 +136,8 @@ class AnalyzeOneWaterCluster:
         intensity = np.sum(comp_intents)
         return intensity
 
-    def calc_StretchDipoleDerivs(self):
+
+    def calc_SBDipoleDerivs(self):
         from McUtils.Zachary import finite_difference
         # O H H ordered
         dip_deriv = self.ClusterObj.FDBdat["RotDipoleDerivatives"]  # in A.U.
@@ -131,9 +161,7 @@ class AnalyzeOneWaterCluster:
                                             stencil=len(self.ClusterObj.FDBdat["HOH Angles"]), only_center=True)
             SB2deriv[j] = finite_difference(self.ClusterObj.FDBdat["HOH Angles"], H2_deriv[:, j], 1,
                                             stencil=len(self.ClusterObj.FDBdat["HOH Angles"]), only_center=True)
-        self.H1_deriv = H1_deriv
-        self.H2_deriv = H2_deriv
-        return SB1deriv, SB2deriv  # D / Ang * amu^1/2
+        return [H1_deriv[2], H2_deriv[2]], [SB1deriv, SB2deriv]  # D / Ang * amu^1/2
 
     def calc_StretchFrequency(self):
         # uses the harmonic displacements to determine which OH stretch frequency corresponds to
@@ -147,7 +175,6 @@ class AnalyzeOneWaterCluster:
             sort_idx = np.argsort(OH_normDisps)
             sort_disps = OH_normDisps[sort_idx]
             disps_diff = sort_disps[-1] - sort_disps[-2]
-            # print(sort_disps[-2], sort_disps[-1])
             if disps_diff <= 0.2:
                 print(f"Harmonic Displacements are only {disps_diff} different, using geometric mean of OH stretches.")
                 OH_freqs[i] = np.sqrt(freqs[0] * freqs[1])  # always two highest freqs
@@ -156,7 +183,10 @@ class AnalyzeOneWaterCluster:
             elif sort_idx[-1] == self.ClusterObj.wateridx[2]:  # check if largest displacement is of H2
                 OH_freqs[1] = freqs[i]
             else:
-                raise Exception(f"Atom {sort_idx[-1]} is neither H1 or H2.")
+                if self.ClusterObj.isotopologue.find("w") > 0:
+                    raise Exception(f"Atom {sort_idx[-1]} is neither H1 or H2.")
+                else:
+                    pass
         freqs_AU = Constants.convert(OH_freqs, "wavenumbers", to_AU=True)  # return frequencies in AU
         return freqs_AU
 
@@ -179,7 +209,7 @@ class AnalyzeOneWaterCluster:
         # frequencies in au
         intensities = np.zeros(2)
         Grr_wave = Constants.convert(self.Grr, "wavenumbers", to_AU=False)
-        for i, deriv in enumerate([self.H1_deriv[2], self.H2_deriv[2]]):
+        for i, deriv in enumerate(self.StretchDipoleDerivs):
             comps = np.zeros(3)
             for j, val in enumerate(["X", "Y", "Z"]):
                 # deriv in AU
@@ -191,16 +221,19 @@ class AnalyzeOneWaterCluster:
         # frequencies in au
         deltaT = (1/2) * self.Gphiphi / self.FDFrequency
         intensities = np.zeros(2)
-        for i, deriv in enumerate(self.StretchDipoleDerivs):
-            print(Constants.convert(self.StretchFrequency[i], "wavenumbers", to_AU=False))
-            deltaR = (1 / 2) * self.Grr / self.StretchFrequency[i]
-            freq = deltaT * deltaR * (self.StretchFrequency[i] + self.FDFrequency)
-            freq_wave = Constants.convert(freq, "wavenumbers", to_AU=False)
-            comps = np.zeros(3)
-            for j, val in enumerate(["X", "Y", "Z"]):
-                # deriv in AU
-                comps[j] = ((abs(deriv[j])**2) / (0.393456 ** 2)) * freq_wave * 2.506
-            intensities[i] = np.sum(comps)
+        for i, deriv in enumerate(self.SBDipoleDerivs):
+            if self.StretchFrequency[i] == 0:
+                pass
+            else:
+                print(Constants.convert(self.StretchFrequency[i], "wavenumbers", to_AU=False))
+                deltaR = (1 / 2) * self.Grr / self.StretchFrequency[i]
+                freq = deltaT * deltaR * (self.StretchFrequency[i] + self.FDFrequency)
+                freq_wave = Constants.convert(freq, "wavenumbers", to_AU=False)
+                comps = np.zeros(3)
+                for j, val in enumerate(["X", "Y", "Z"]):
+                    # deriv in AU
+                    comps[j] = ((abs(deriv[j])**2) / (0.393456 ** 2)) * freq_wave * 2.506
+                intensities[i] = np.sum(comps)
         return intensities
 
 

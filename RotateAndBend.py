@@ -120,11 +120,11 @@ def writeNewCoords(logfile, waterPos, theta_d, ang_arg, atom_str, newfile, bend_
         elif jobType == "Harmonic":
             gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current freq=vibrot \n \n")
         elif jobType == "Anharmonic":
-            # gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current freq=(vibrot, anh, SelectAnharmonicModes) \n \n")
-            gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current freq=(vibrot, anh) \n \n")
+            gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current freq=(vibrot, anh, SelectAnharmonicModes) \n \n")
+            # gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current freq=(vibrot, anh) \n \n")
         else:
             raise Exception(f"Can not determine what {jobType} job is")
-        gjfFile.write("one water rest D - Dimer double zeta \n \n")
+        gjfFile.write("one water rest D - double zeta \n \n")
         gjfFile.write("0 1 \n")
 
         for i, coord in enumerate(new_coords):
@@ -135,32 +135,72 @@ def writeNewCoords(logfile, waterPos, theta_d, ang_arg, atom_str, newfile, bend_
                 gjfFile.write(f"{atom_str[i]}     {coord[0]:.6f}  {coord[1]:.6f}  {coord[2]:.6f} \n")
             else:
                 gjfFile.write(f"{atom_str[i]}(iso=2)     {coord[0]:.6f}  {coord[1]:.6f}  {coord[2]:.6f} \n")
-        # if jobType == "Anharmonic":  # if running "SelectAnharmonicModes" specify modes to include
-        #     gjfFile.write("\n 19-30 \n")
+        if jobType == "Anharmonic":  # if running "SelectAnharmonicModes" specify modes to include
+            gjfFile.write("\n 19-30 \n")
+        gjfFile.write("\n \n \n")
+        gjfFile.close()
+
+def writeNewHODCoords(logfile, waterPos, theta_d, ang_arg, atom_str, newfile, bend_mode=None, jobType="SP"):
+    """ Return a written gjf file for the new HOD geometry. """
+    if bend_mode is None:
+        raise Exception(f"Can not complete without bend mode defined.")
+    H1, H2 = PointRotate3D(logfile, waterPos, theta_d, ang_arg, bend_mode)
+    coords = pullStandardCoordinates(logfile)
+    new_coords = np.copy(coords)
+    new_coords[waterPos[1]] = H1
+    new_coords[waterPos[2]] = H2
+    with open(os.path.join(MoleculeDir, newfile), "w") as gjfFile:
+        gjfFile.write(f"%chk={newfile[:-4]}.chk \n")
+        gjfFile.write("%nproc=28 \n")
+        gjfFile.write("%mem=120GB \n")
+        if jobType == "SP":
+            gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current \n \n")
+        elif jobType == "Harmonic":
+            gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current freq=vibrot \n \n")
+        elif jobType == "Anharmonic":
+            gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current freq=(vibrot, anh, SelectAnharmonicModes) \n \n")
+        else:
+            raise Exception(f"Can not determine what {jobType} job is")
+        gjfFile.write("one H rest D - double zeta \n \n")
+        gjfFile.write("0 1 \n")
+
+        for i, coord in enumerate(new_coords):
+            if i == waterPos[1]:  # only leave first "H" in waterPos, rest assigned D
+                # adding the ":.6f" in the curly brackets tells python to print the value to 6 decimal places
+                gjfFile.write(f"{atom_str[i]}     {coord[0]:.6f}  {coord[1]:.6f}  {coord[2]:.6f} \n")
+            elif atom_str[i] == "O":
+                gjfFile.write(f"{atom_str[i]}     {coord[0]:.6f}  {coord[1]:.6f}  {coord[2]:.6f} \n")
+            else:
+                gjfFile.write(f"{atom_str[i]}(iso=2)     {coord[0]:.6f}  {coord[1]:.6f}  {coord[2]:.6f} \n")
+        if jobType == "Anharmonic":  # if running "SelectAnharmonicModes" specify modes to include
+            gjfFile.write("\n 19-30 \n")
         gjfFile.write("\n \n \n")
         gjfFile.close()
 
 
 if __name__ == '__main__':
     docs = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    MoleculeDir = os.path.join(docs, "stretch_bend", "pentamer", "ring")
+    MoleculeDir = os.path.join(docs, "stretch_bend", "tetramer_16", "cage")
     monomer = ["H", "O", "H"]
     mono_pos = [1, 0, 2]
     tet_cage = ["O", "O", "O", "O", "H", "H", "H", "H", "H", "H", "H", "H"]
     hexa = ["O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H"]
     penta = ["O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H"]
-    water_pos = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [12, 13, 14]]
-    tet_pos = [[0, 4, 5], [1, 6, 7], [2, 8, 10], [3, 9, 11]]
-    bendMode = 28  # 35 for hexamer, 28 for pentamer, 21 for tet, 7 for di, 2 for monomer
-    for f in np.arange(1, 6):
-        print(f)
-        log = os.path.join(MoleculeDir, f"w5r_Hw{f}.log")
+    water_pos = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [12, 13, 14], [15, 16, 17]]
+    # tet_pos = [[0, 4, 5], [1, 6, 7], [2, 8, 10], [3, 9, 11]]
+    tet_files = ["w4c_oneH1.log", "w4c_oneH2.log", "w4c_oneH3.log", "w4c_oneH4d.log", "w4c_oneH5.log",
+                 "w4c_oneH6.log", "w4c_oneH7.log", "w4c_oneH8.log"]
+    tet_pos = [[0, 4, 5], [0, 5, 4], [1, 6, 7], [1, 7, 6], [2, 8, 10], [3, 9, 11], [2, 10, 8], [3, 11, 9]]
+    bendMode = 21  # 35 for hexamer, 28 for pentamer, 21 for tet, 7 for di, 2 for monomer
+    for f, name in enumerate(tet_files):
+        print(f+1)
+        log = os.path.join(MoleculeDir, name)
         angArg = "Decrease"
-        pos = water_pos[f-1]
+        pos = tet_pos[f]
         for i, j in enumerate(np.arange(0.5, 2.5, 0.5)):
-            newFf = f"w5r_m{i}_harm.gjf"
-            writeNewCoords(log, pos, j, angArg, penta, newFf, bend_mode=bendMode, jobType="Harmonic")
+            newFf = f"w4c_H{f+1}_m{i}.gjf"
+            writeNewHODCoords(log, pos, j, angArg, tet_cage, newFf, bend_mode=bendMode, jobType="Anharmonic")
         angArg2 = "Increase"
         for i, j in enumerate(np.arange(0.5, 2.5, 0.5)):
-            newFf = f"w5r_p{i}_harm.gjf"
-            writeNewCoords(log, pos, j, angArg2, penta, newFf, bend_mode=bendMode, jobType="Harmonic")
+            newFf = f"w4c_H{f+1}_p{i}.gjf"
+            writeNewHODCoords(log, pos, j, angArg2, tet_cage, newFf, bend_mode=bendMode, jobType="Anharmonic")

@@ -565,7 +565,19 @@ class BuildDimer(BuildWaterCluster):
 class BuildTetCage(BuildWaterCluster):
     def __init__(self, num_waters=None, isotopologue=None, FDBstep=None):
         super().__init__(num_waters, isotopologue, FDBstep)
-        self.waterNum = self.isotopologue[-1]
+        if self.isotopologue.find("w") > 0:
+            self.waterNum = self.isotopologue[-1]
+            self.Hnum = None
+        else:
+            self.Hnum = int(self.isotopologue[-1])
+            if self.Hnum == 1 or self.Hnum == 2:
+                self.waterNum = 1
+            elif self.Hnum == 3 or self.Hnum == 4:
+                self.waterNum = 2
+            elif self.Hnum == 5 or self.Hnum == 7:
+                self.waterNum = 3
+            elif self.Hnum == 6 or self.Hnum == 8:
+                self.waterNum = 4
         self._ClusterDir = None  # Directory with specific cluster data
         self._wateridx = None  # python index of which molecules are the H2O (vs D2O)
         self._WaterDir = None  # Directory with data for specific H2O - 3 D2O isotopologue
@@ -617,13 +629,13 @@ class BuildTetCage(BuildWaterCluster):
     @property
     def eqfchk(self):
         if self._eqfchk is None:
-            self._eqfchk = os.path.join(self.WaterDir, f"w4c_Hw{self.waterNum}.fchk")
+            self._eqfchk = os.path.join(self.WaterDir, f"w4c_{self.isotopologue}.fchk")
         return self._eqfchk
 
     @property
     def eqlog(self):
         if self._eqlog is None:
-            self._eqlog = os.path.join(self.WaterDir, f"w4c_Hw{self.waterNum}.log")
+            self._eqlog = os.path.join(self.WaterDir, f"w4c_{self.isotopologue}.log")
         return self._eqlog
 
     @property
@@ -634,18 +646,22 @@ class BuildTetCage(BuildWaterCluster):
 
     @property
     def FDfiles(self):
+        if self.isotopologue.find("w") > 0:
+            extra_tag = "_anh"
+        else:
+            extra_tag = ""
         if self.FDBstep == "0.5":
-            self._FDfiles = [os.path.join(self.WaterDir, f"w4c_Hw{self.waterNum}_m1_anh.fchk"),
-                             os.path.join(self.WaterDir, f"w4c_Hw{self.waterNum}_m0_anh.fchk"),
-                             os.path.join(self.WaterDir, f"w4c_Hw{self.waterNum}.fchk"),
-                             os.path.join(self.WaterDir, f"w4c_Hw{self.waterNum}_p0_anh.fchk"),
-                             os.path.join(self.WaterDir, f"w4c_Hw{self.waterNum}_p1_anh.fchk")]
+            self._FDfiles = [os.path.join(self.WaterDir, f"w4c_{self.isotopologue}_m1{extra_tag}.fchk"),
+                             os.path.join(self.WaterDir, f"w4c_{self.isotopologue}_m0{extra_tag}.fchk"),
+                             self.eqfchk,
+                             os.path.join(self.WaterDir, f"w4c_{self.isotopologue}_p0{extra_tag}.fchk"),
+                             os.path.join(self.WaterDir, f"w4c_{self.isotopologue}_p1{extra_tag}.fchk")]
         elif self.FDBstep == "1":
-            self._FDfiles = [os.path.join(self.WaterDir, f"w4c_Hw{self.waterNum}_m1_test.fchk"),
-                             os.path.join(self.WaterDir, f"w4c_Hw{self.waterNum}_m0_test.fchk"),
-                             os.path.join(self.WaterDir, f"w4c_Hw{self.waterNum}.fchk"),
-                             os.path.join(self.WaterDir, f"w4c_Hw{self.waterNum}_p0_test.fchk"),
-                             os.path.join(self.WaterDir, f"w4c_Hw{self.waterNum}_p1_test.fchk")]
+            self._FDfiles = [os.path.join(self.WaterDir, f"w4c_{self.isotopologue}_m3{extra_tag}.fchk"),
+                             os.path.join(self.WaterDir, f"w4c_{self.isotopologue}_m1{extra_tag}.fchk"),
+                             self.eqfchk,
+                             os.path.join(self.WaterDir, f"w4c_{self.isotopologue}_p1{extra_tag}.fchk"),
+                             os.path.join(self.WaterDir, f"w4c_{self.isotopologue}_p3{extra_tag}.fchk")]
         else:
             raise Exception(f"Can find data with {self.FDBstep} step size.")
         return self._FDfiles
@@ -682,19 +698,38 @@ class BuildTetCage(BuildWaterCluster):
         return self._HarmDisps
                
     def pullWaterIdx(self):
-        """ If the isotopologue type is 1 H2O, 3 D2O this sets the `wateridx` property to the appropriately
-         python indexed list ordered [O, H, H] to be used throughout the class and analysis code
+        """ This sets the `wateridx` property to the appropriately python indexed list ordered [O, H, H] or [O, H, D]
+         to be used throughout the class and analysis code
          :return: the indices of the H2O in a given istopologue
          :rtype: list of ints
          """
-        if self.isotopologue == "Hw1":
+        if self.Hnum is None:
+            if self.waterNum == "1":
+                idx = 4
+            if self.waterNum == "2":
+                idx = 6
+            if self.waterNum == "3":
+                idx = 8
+            if self.waterNum == "4":
+                idx = 9
+        else:
+            idx = self.Hnum + 3
+        if idx == 4:
             wateridx = [0, 4, 5]
-        elif self.isotopologue == "Hw2":
+        elif idx == 5:
+            wateridx = [0, 5, 4]
+        elif idx == 6:
             wateridx = [1, 6, 7]
-        elif self.isotopologue == "Hw3":
+        elif idx == 7:
+            wateridx = [1, 7, 6]
+        elif idx == 8:
             wateridx = [2, 8, 10]
-        elif self.isotopologue == "Hw4":
+        elif idx == 10:
+            wateridx = [2, 10, 8]
+        elif idx == 9:
             wateridx = [3, 9, 11]
+        elif idx == 11:
+            wateridx = [3, 11, 9]
         else:
             wateridx = None
         return wateridx
@@ -711,14 +746,13 @@ class BuildTetCage(BuildWaterCluster):
         else:
             atomarray.extend(["D", "D", "D", "D", "D", "D", "D", "D"])
         # now go through and assign H based of isotopologue number (for 1 H cases) OR wateridx (1 H2O 3 D2O cases)
-        if self.wateridx is None:
-            if type(self.isotopologue) == int:
-                atomarray[self.isotopologue] = "H"
-            else:
-                raise Exception(f"can not define atom array for {self.isotopologue} isotopologue")
-        else:
+        if type(self.Hnum) == int:
+            atomarray[self.Hnum+3] = "H"
+        elif len(self.isotopologue) == 3:
             atomarray[self.wateridx[1]] = "H"
             atomarray[self.wateridx[2]] = "H"
+        else:
+            raise Exception(f"can not define atom array for {self.isotopologue} isotopologue")
         return atomarray
 
 class BuildTetThreeOne(BuildWaterCluster):
@@ -1257,13 +1291,19 @@ class BuildHexCage(BuildWaterCluster):
     @property
     def eqfchk(self):
         if self._eqfchk is None:
-            self._eqfchk = os.path.join(self.WaterDir, f"w6c_Hw{self.waterNum}.fchk")
+            if self.wateridx is None:
+                self._eqfchk = os.path.join(self.ClusterDir, f"w6c_{self.isotopologue}.fchk")
+            else:
+                self._eqfchk = os.path.join(self.WaterDir, f"w6c_{self.isotopologue}.fchk")
         return self._eqfchk
 
     @property
     def eqlog(self):
         if self._eqlog is None:
-            self._eqlog = os.path.join(self.WaterDir, f"w6c_Hw{self.waterNum}.log")
+            if self.wateridx is None:
+                self._eqlog = os.path.join(self.ClusterDir, f"w6c_{self.isotopologue}.log")
+            else:
+                self._eqlog = os.path.join(self.WaterDir, f"w6c_{self.isotopologue}.log")
         return self._eqlog
 
     @property
