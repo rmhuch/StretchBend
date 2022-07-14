@@ -18,7 +18,7 @@ def pull_data(logfile_pattern, ens_wave=True):
                  'Dipoles' - dipoles from Gaussian (later rotated), 'xyData' - values of the scanned coordinates,
                  'Energies' - Gaussian energies, 'Cartesians' -  Coordinates at every scan point"""
     dataDict = dict()
-    docs = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    docs = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     MainDir = os.path.join(docs, "stretch_bend", "RyanOctomer")
     # assign values for all data
     dataDict["MainDir"] = MainDir
@@ -179,11 +179,50 @@ def plot_dipoles(dataDict):
         else:
             pass
 
+def plot_dipoleswWFNS(dataDict):
+    data_name = dataDict["DataName"]
+    if os.path.exists(os.path.join(dataDict["MainDir"], f"{data_name}_rotdips_OHO.npy")):
+        dips = np.load(os.path.join(dataDict["MainDir"], f"{data_name}_rotdips_OHO.npy"))
+    else:
+        rot_coords, dips = rotate(dataDict)
+    x = np.unique(dataDict["xyData"][:, 0])
+    y = np.unique(dataDict["xyData"][:, 1])
+    min_arg = np.argmin(dataDict["Energies"])
+    print(dataDict["xyData"][min_arg])
+    eq_coords = dataDict["xyData"][min_arg]
+    comp = ['X', 'Y', 'Z']
+    # pull ground state wave function
+    DVRdat = np.load(os.path.join(dataDict["MainDir"], f"{data_name}_2D_DVR.npz"))
+    gs_wfn = DVRdat["wfns_array"][:, 0]
+    for i in np.arange(dips.shape[1]):
+        if i == 0:
+            plt.rcParams.update({'font.size': 20})
+            shift_dips = dips[:, i] - dips[min_arg, i]
+            dipoles = shift_dips.reshape((len(x), len(y)))
+            fig, ax = plt.subplots(figsize=(14, 12), dpi=216)
+            v = np.linspace(-3.0, 3.0, 21, endpoint=True)
+            # plot dipole contour
+            im = ax.contourf(x, y * 2, dipoles, v, cmap="RdYlBu", vmin=-3.0, vmax=3.0)  # , extend="both")
+            # plot eq point
+            plt.plot(eq_coords[0], eq_coords[1] * 2, marker="X", markersize=16, color="k")
+            # plot wave function
+            ax.contour(x, y * 2, gs_wfn.reshape((len(x), len(y))).T, colors="black")
+            fig.colorbar(im, ticks=np.linspace(-3.0, 3.0, 7, endpoint=True), label="Debye")
+            ax.set_title(dataDict["Molecule"] + " " + dataDict["ScanCoords"] + f" {comp[i]} Dipole")
+            data_name = dataDict["DataName"]
+            plt.savefig(os.path.join(dataDict["MainDir"], "Figures", f"{data_name}_{comp[i]}dipoleswWFNS.png"), dpi=fig.dpi,
+                        bboxinches="tight")
+            plt.close()
+        else:
+            pass
+
 if __name__ == '__main__':
-    logs = ["w2_ScanR4B.log", "w2_ScanR5B*.log", "w6_ScanR4B*.log", "w6_ScanR5B*.log", "w6a_ScanR4B*.log", "w6a_ScanR5B*.log", "w1_Scan*.log"]
+    # logs = ["w2_ScanR4B.log", "w2_ScanR5B*.log", "w6_ScanR4B*.log", "w6_ScanR5B*.log", "w6a_ScanR4B*.log", "w6a_ScanR5B*.log", "w1_Scan*.log"]
+    logs = ["w2_ScanR5B*.log", "w6_ScanR5B*.log", "w6a_ScanR5B*.log", "w1_Scan*.log"]
     for l in logs:
         print(l)
         Ddict = pull_data(l)
+        name = Ddict["DataName"]
         # plot_potential(Ddict)
-        plot_dipoles(Ddict)
+        plot_dipoleswWFNS(Ddict)
 
