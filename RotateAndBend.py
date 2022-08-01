@@ -118,14 +118,14 @@ def writeNewCoords(logfile, waterPos, theta_d, ang_arg, atom_str, newfile, bend_
         if jobType == "SP":
             gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current \n \n")
         elif jobType == "Harmonic":
-            gjfFile.write("#p mp2/aug-cc-pvtz scf=tight density=current freq=vibrot \n \n")
+            gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current freq \n \n")
         elif jobType == "Anharmonic":
             gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current freq=(vibrot, anh, SelectAnharmonicModes) \n \n")
             # gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current freq=(vibrot, anh) \n \n")
         else:
             raise Exception(f"Can not determine what {jobType} job is")
-        gjfFile.write("one water rest D - triple zeta \n \n")
-        gjfFile.write("0 1 \n")
+        gjfFile.write("one water rest D - double zeta \n \n")
+        gjfFile.write("1 1 \n")
 
         for i, coord in enumerate(new_coords):
             if i == waterPos[1] or i == waterPos[2]:
@@ -156,7 +156,7 @@ def writeNewHODCoords(logfile, waterPos, theta_d, ang_arg, atom_str, newfile, be
         if jobType == "SP":
             gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current \n \n")
         elif jobType == "Harmonic":
-            gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current freq=vibrot \n \n")
+            gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current freq \n \n")
         elif jobType == "Anharmonic":
             gjfFile.write("#p mp2/aug-cc-pvdz scf=tight density=current freq=(vibrot, anh, SelectAnharmonicModes) \n \n")
         else:
@@ -180,26 +180,34 @@ def writeNewHODCoords(logfile, waterPos, theta_d, ang_arg, atom_str, newfile, be
 
 if __name__ == '__main__':
     docs = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    MoleculeDir = os.path.join(docs, "stretch_bend", "tetramer_tz", "cage")
+    MoleculeDir = os.path.join(docs, "stretch_bend", "hexamer_pls")
     monomer = ["H", "O", "H"]
     mono_pos = [1, 0, 2]
     tet_cage = ["O", "O", "O", "O", "H", "H", "H", "H", "H", "H", "H", "H"]
     hexa = ["O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H"]
     penta = ["O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H"]
-    water_pos = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [12, 13, 14], [15, 16, 17]]
-    # tet_pos = [[0, 4, 5], [1, 6, 7], [2, 8, 10], [3, 9, 11]]
+    hexP = ["O", "H", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H"]
+    pentaP = ["O", "H", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H"]
+    tetP = ["O", "H", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H"]
     tet_files = ["w4c_Hw1.log", "w4c_Hw2.log", "w4c_Hw3.log", "w4c_Hw4.log"]
+    hexP_files = ["w6pT1_Hw1.log", "w6pT1_Hw2.log", "w6pT1_Hw3.log", "w6pT1_Hw4.log", "w6pT1_Hw5.log"]
+    pentaP_files = ["w5pR_Hw1.log", "w5pR_Hw2.log", "w5pR_Hw3.log", "w5pR_Hw4.log"]
+    tetP_files = ["w4pR_Hw1.log", "w4pR_Hw2.log", "w4pR_Hw3.log"]
     tet_pos = [[0, 4, 5], [1, 6, 7], [2, 8, 10], [3, 9, 11]]
-    bendMode = 21  # 35 for hexamer, 28 for pentamer, 21 for tet, 7 for di, 2 for monomer
-    for f, name in enumerate(tet_files):
+    hex_pos = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [12, 13, 14], [15, 16, 17]]
+    hexp_pos = [[4, 5, 6], [7, 8, 9], [10, 11, 12], [13, 14, 15], [16, 17, 18]]
+    pentap_pos = [[4, 5, 6], [7, 8, 9], [10, 11, 12], [13, 14, 15]]
+    tetp_pos = [[4, 5, 6], [7, 8, 9], [10, 11, 12]]
+    bendMode = 23  # 37 for hexamer+, 35 for hexamer, 28 for pentamer, 23 for tet+, 21 for tet, 7 for di, 2 for monomer
+    for f, name in enumerate(hexP_files):
         print(f+1)
         log = os.path.join(MoleculeDir, name)
         angArg = "Decrease"
-        pos = tet_pos[f]
+        pos = hexp_pos[f]
         for i, j in enumerate(np.arange(0.5, 2.5, 0.5)):
-            newFf = f"w4c_Hw{f+1}_m{i}.gjf"
-            writeNewCoords(log, pos, j, angArg, tet_cage, newFf, bend_mode=bendMode, jobType="Harmonic")
+            newFf = f"{name[:-4]}_m{i}.gjf"
+            writeNewCoords(log, pos, j, angArg, hexP, newFf, bend_mode=bendMode, jobType="Harmonic")
         angArg2 = "Increase"
         for i, j in enumerate(np.arange(0.5, 2.5, 0.5)):
-            newFf = f"w4c_Hw{f+1}_p{i}.gjf"
-            writeNewCoords(log, pos, j, angArg2, tet_cage, newFf, bend_mode=bendMode, jobType="Harmonic")
+            newFf = f"{name[:-4]}_p{i}.gjf"
+            writeNewCoords(log, pos, j, angArg2, hexP, newFf, bend_mode=bendMode, jobType="Harmonic")

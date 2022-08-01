@@ -4,10 +4,10 @@ from Converter import Constants
 from FChkInterpreter import FchkInterpreter
 
 class BuildWaterCluster:
-    def __init__(self, num_waters=None, isotopologue=None, FDBstep=None):
-        if num_waters > 1 and isotopologue is None:
+    def __init__(self, num_atoms=None, isotopologue=None, FDBstep=None):
+        if num_atoms > 3 and isotopologue is None:
             raise Exception("No isotopologue defined, can not build cluster.")
-        self.num_waters = num_waters
+        self.num_atoms = num_atoms
         self.isotopologue = isotopologue
         self.FDBstep = FDBstep
         self._MainDir = None  # Main Directory for the project
@@ -53,7 +53,7 @@ class BuildWaterCluster:
         # pull dipole moments
         dips = dat.Dipoles  # (5, 6, 3) - XYZ for 6 atoms / step
         dd = dat.DipoleDerivatives
-        dd = dd.reshape((5, self.num_waters*3, 3, 3))  # XYZ for XYZ for 6 atoms / step
+        dd = dd.reshape((5, self.num_atoms, 3, 3))  # XYZ for XYZ for 6 atoms / step
         # order angles/energies - triple check
         sort_idx = np.argsort(HOH)
         HOH_sort = HOH[sort_idx]
@@ -73,7 +73,7 @@ class BuildWaterCluster:
         RotDict = dict()
         PAobj = MomentOfSpinz(FDBdat["Cartesians"][2], massarray)  # rotate eq to Principle Axis Frame
         ref = PAobj.RotCoords
-        if self.num_waters == 1:
+        if self.num_atoms == 3:
             planar_flag = True
         else:
             planar_flag = None
@@ -93,7 +93,7 @@ class BuildWaterCluster:
 
     def calc_dXdR_disps(self, RotDict, wateridx, massarray):
         from Eckart_turny_turn import EckartsSpinz
-        if self.num_waters == 1:
+        if self.num_atoms == 3:
             planar_flag = True
         else:
             planar_flag = None
@@ -199,7 +199,7 @@ class BuildWaterCluster:
 
 class BuildMonomer:
     def __init__(self):
-        self.num_waters = 1
+        self.num_atoms = 3
         self._ClusterDir = None  # Directory with specific cluster data
         self._atomarray = None  # list of Atom names in the order of the Gaussian input/output
         self._wateridx = None  # re-order atoms to be O, H, H (like the others) * for analysis *
@@ -408,8 +408,8 @@ class BuildMonomer:
         self.FDBdat["RotR2minus"] = RotR2minus
 
 class BuildDimer(BuildWaterCluster):
-    def __init__(self, num_waters=None, isotopologue=None, FDBstep=None):
-        super().__init__(num_waters, isotopologue, FDBstep)
+    def __init__(self, num_atoms=None, isotopologue=None, FDBstep=None):
+        super().__init__(num_atoms, isotopologue, FDBstep)
         self.waterNum = self.isotopologue[-1]
         self._ClusterDir = None  # Directory with specific cluster data - all data here
         self._wateridx = None  # python index of which molecules are the H2O (vs D2O) (listed O, H, H)
@@ -563,8 +563,8 @@ class BuildDimer(BuildWaterCluster):
         return atomarray
 
 class BuildTetCage(BuildWaterCluster):
-    def __init__(self, num_waters=None, isotopologue=None, FDBstep=None):
-        super().__init__(num_waters, isotopologue, FDBstep)
+    def __init__(self, num_atoms=None, isotopologue=None, FDBstep=None):
+        super().__init__(num_atoms, isotopologue, FDBstep)
         if self.isotopologue.find("w") > 0:
             self.waterNum = self.isotopologue[-1]
             self.Hnum = None
@@ -755,9 +755,153 @@ class BuildTetCage(BuildWaterCluster):
             raise Exception(f"can not define atom array for {self.isotopologue} isotopologue")
         return atomarray
 
+class BuildTetCageTZ(BuildWaterCluster):
+    def __init__(self, num_atoms=None, isotopologue=None, FDBstep=None):
+        super().__init__(num_atoms, isotopologue, FDBstep)
+        self.waterNum = self.isotopologue[-1]
+        self._ClusterDir = None  # Directory with specific cluster data
+        self._wateridx = None  # python index of which molecules are the H2O (vs D2O)
+        self._WaterDir = None  # Directory with data for specific H2O - 3 D2O isotopologue
+        self._atomarray = None  # list of Atom names in the order of the Gaussian input/output
+        self._massarray = None  # list of corresponding masses
+        self._eqfchk = None  # path/filename of the data for the equilibrium structure (fchk of anharmonic calc)
+        self._eqlog = None  # path/filename of the data for the equilibrium structure (log of anharmonic calc)
+        self._EQcartesians = None  # all cartesian coordinates at the equilibrium for given isotopologue
+        self._FDfiles = None  # list of the fchk files for the 5pt FD scan
+        self._FDBdat = None  # dictionary of fchk data for angle scan of `self.FDBstep` degrees (5 pts)
+        self._waterIntCoords = None  # dictionary of water internal coordinates (from eq fchk)
+        self._HarmFreqs = None  # array of harmonic frequencies (from eq log)
+        self._HarmDisps = None  # Harmonic displacements for each atom corresponding to ^ frequencies
+
+    @property
+    def ClusterDir(self):
+        """uses os to pull the directory where all data for this project is stored"""
+        if self._ClusterDir is None:
+            self._ClusterDir = os.path.join(self.MainDir, "tetramer_tz", "cage")
+        return self._ClusterDir
+
+    @property
+    def wateridx(self):
+        if self._wateridx is None:
+            self._wateridx = self.pullWaterIdx()
+        return self._wateridx
+
+    @property
+    def WaterDir(self):
+        if self._WaterDir is None:
+            if self.wateridx is None:
+                self._WaterDir = None
+            else:
+                self._WaterDir = os.path.join(self.ClusterDir, f"Water{self.waterNum}")
+        return self._WaterDir
+
+    @property
+    def atomarray(self):
+        if self._atomarray is None:
+            self._atomarray = self.getAtoms()
+        return self._atomarray
+
+    @property
+    def massarray(self):
+        if self._massarray is None:
+            self._massarray = self.get_masses(self.atomarray)
+        return self._massarray
+
+    @property
+    def eqfchk(self):
+        if self._eqfchk is None:
+            self._eqfchk = os.path.join(self.WaterDir, f"w4c_{self.isotopologue}.fchk")
+        return self._eqfchk
+
+    @property
+    def eqlog(self):
+        if self._eqlog is None:
+            self._eqlog = os.path.join(self.WaterDir, f"w4c_{self.isotopologue}.log")
+        return self._eqlog
+
+    @property
+    def EQcartesians(self):
+        if self._EQcartesians is None:
+            self._EQcartesians = self.getCarts(self.eqfchk)
+        return self._EQcartesians
+
+    @property
+    def FDfiles(self):
+        if self.FDBstep == "0.5":
+            self._FDfiles = [os.path.join(self.WaterDir, f"w4c_{self.isotopologue}_m1.fchk"),
+                             os.path.join(self.WaterDir, f"w4c_{self.isotopologue}_m0.fchk"),
+                             self.eqfchk,
+                             os.path.join(self.WaterDir, f"w4c_{self.isotopologue}_p0.fchk"),
+                             os.path.join(self.WaterDir, f"w4c_{self.isotopologue}_p1.fchk")]
+        else:
+            raise Exception(f"Can find data with {self.FDBstep} step size.")
+        return self._FDfiles
+
+    @property
+    def FDBdat(self):
+        if self._FDBdat is None:
+            self._FDBdat = dict()
+            OGFDdat = self.getFDdat(fchk_files=self.FDfiles, wateridx=self.wateridx)
+            self._FDBdat.update(OGFDdat)
+            RotDict = self.spiny_spin(FDBdat=OGFDdat, massarray=self.massarray)
+            self._FDBdat.update(RotDict)
+            DispsDict = self.calc_dXdR_disps(RotDict=RotDict, wateridx=self.wateridx, massarray=self.massarray)
+            self._FDBdat.update(DispsDict)
+        return self._FDBdat
+
+    @property
+    def waterIntCoords(self):
+        if self._waterIntCoords is None:
+            HOH, R12, R23 = self.calcInternals(coords=self.EQcartesians, wateridx=self.wateridx)
+            self._waterIntCoords = {"HOH": HOH, "R12": R12, "R23": R23}
+        return self._waterIntCoords
+
+    @property
+    def HarmFreqs(self):
+        if self._HarmFreqs is None:
+            self._HarmFreqs, self._HarmDisps = self.pullHarmFreqs(self.eqlog)
+        return self._HarmFreqs
+
+    @property
+    def HarmDisps(self):
+        if self._HarmDisps is None:
+            self._HarmFreqs, self._HarmDisps = self.pullHarmFreqs(self.eqlog)
+        return self._HarmDisps
+
+    def pullWaterIdx(self):
+        """ This sets the `wateridx` property to the appropriately python indexed list ordered [O, H, H]
+         to be used throughout the class and analysis code
+         :return: the indices of the H2O in a given istopologue
+         :rtype: list of ints
+         """
+        if self.isotopologue == "Hw1":
+            wateridx = [0, 4, 5]
+        elif self.isotopologue == "Hw2":
+            wateridx = [1, 6, 7]
+        elif self.isotopologue == "Hw3":
+            wateridx = [2, 8, 10]
+        elif self.isotopologue == "Hw4":
+            wateridx = [3, 9, 11]
+        else:
+            wateridx = None
+        return wateridx
+
+    def getAtoms(self):
+        """ for ALL isotopologues of the water tetramer cage the atom ordering is all 4 oxygens then all 8 hydrogens...
+         so we start with a list of "O" then go through case by case to set the hydrogen/deuteriums
+        :return: atoms of the tetramer cage ordered as they are in the Gaussian Job Files (gjf)
+        :rtype: list of strings
+        """
+        atomarray = ["O", "O", "O", "O"]
+        atomarray.extend(["D", "D", "D", "D", "D", "D", "D", "D"])
+        # now go through and assign H based of wateridx (1 H2O 3 D2O cases)
+        atomarray[self.wateridx[1]] = "H"
+        atomarray[self.wateridx[2]] = "H"
+        return atomarray
+
 class BuildTetThreeOne(BuildWaterCluster):
-    def __init__(self, num_waters=None, isotopologue=None, FDBstep=None):
-        super().__init__(num_waters, isotopologue, FDBstep)
+    def __init__(self, num_atoms=None, isotopologue=None, FDBstep=None):
+        super().__init__(num_atoms, isotopologue, FDBstep)
         self.waterNum = self.isotopologue[-1]
         self._ClusterDir = None  # Directory with specific cluster data
         self._wateridx = None  # python index of which molecules are the H2O (vs D2O)
@@ -916,9 +1060,159 @@ class BuildTetThreeOne(BuildWaterCluster):
             atomarray[self.wateridx[2]] = "H"
         return atomarray
 
+class BuildTetPlusRing(BuildWaterCluster):
+    def __init__(self, num_atoms=None, isotopologue=None, FDBstep=None):
+        super().__init__(num_atoms, isotopologue, FDBstep)
+        self.waterNum = self.isotopologue[-1]
+        self._ClusterDir = None  # Directory with specific cluster data
+        self._wateridx = None  # python index of which molecules are the H2O (vs D2O)
+        self._WaterDir = None  # Directory with data for specific H2O - 5 D2O isotopologue
+        self._atomarray = None  # list of Atom names in the order of the Gaussian input/output
+        self._massarray = None  # list of corresponding masses
+        self._eqfchk = None  # path/filename of the data for the equilibrium structure (fchk of anharmonic calc)
+        self._eqlog = None  # path/filename of the data for the equilibrium structure (log of anharmonic calc)
+        self._EQcartesians = None  # all cartesian coordinates at the equilibrium for given isotopologue
+        self._FDfiles = None  # list of the fchk files for the 5pt FD scan
+        self._FDBdat = None  # dictionary of fchk data for angle scan of `self.FDBstep` degrees (5 pts)
+        self._waterIntCoords = None  # dictionary of water internal coordinates (from eq fchk - all H)
+        self._HarmFreqs = None
+        self._HarmDisps = None  # Harmonic displacements for each atom corresponding to ^ frequencies
+
+    @property
+    def ClusterDir(self):
+        """uses os to pull the directory where all data for this project is stored"""
+        if self._ClusterDir is None:
+            self._ClusterDir = os.path.join(self.MainDir, "tetramer_pls")
+        return self._ClusterDir
+
+    @property
+    def wateridx(self):
+        if self._wateridx is None:
+            self._wateridx = self.pullWaterIdx()
+        return self._wateridx
+
+    @property
+    def WaterDir(self):
+        if self._WaterDir is None:
+            if self.wateridx is None:
+                self._WaterDir = None
+            else:
+                self._WaterDir = os.path.join(self.ClusterDir, f"Water{self.waterNum}")
+        return self._WaterDir
+
+    @property
+    def atomarray(self):
+        if self._atomarray is None:
+            self._atomarray = self.getAtoms()
+        return self._atomarray
+
+    @property
+    def massarray(self):
+        if self._massarray is None:
+            self._massarray = self.get_masses(self.atomarray)
+        return self._massarray
+
+    @property
+    def eqfchk(self):
+        if self._eqfchk is None:
+            if self.wateridx is None:
+                self._eqfchk = os.path.join(self.ClusterDir, f"w4pR_{self.isotopologue}.fchk")
+            else:
+                self._eqfchk = os.path.join(self.WaterDir, f"w4pR_{self.isotopologue}.fchk")
+        return self._eqfchk
+
+    @property
+    def eqlog(self):
+        if self._eqlog is None:
+            if self.wateridx is None:
+                self._eqlog = os.path.join(self.ClusterDir, f"w4pR_{self.isotopologue}.log")
+            else:
+                self._eqlog = os.path.join(self.WaterDir, f"w4pR_{self.isotopologue}.log")
+        return self._eqlog
+
+    @property
+    def EQcartesians(self):
+        if self._EQcartesians is None:
+            self._EQcartesians = self.getCarts(self.eqfchk)
+        return self._EQcartesians
+
+    @property
+    def FDfiles(self):
+        if self.FDBstep == "0.5":
+            self._FDfiles = [os.path.join(self.WaterDir, f"w4pR_Hw{self.waterNum}_m1.fchk"),
+                             os.path.join(self.WaterDir, f"w4pR_Hw{self.waterNum}_m0.fchk"),
+                             os.path.join(self.WaterDir, f"w4pR_Hw{self.waterNum}.fchk"),
+                             os.path.join(self.WaterDir, f"w4pR_Hw{self.waterNum}_p0.fchk"),
+                             os.path.join(self.WaterDir, f"w4pR_Hw{self.waterNum}_p1.fchk")]
+        else:
+            raise Exception(f"Can find data with {self.FDBstep} step size.")
+        return self._FDfiles
+
+    @property
+    def FDBdat(self):
+        if self._FDBdat is None:
+            self._FDBdat = dict()
+            OGFDdat = self.getFDdat(fchk_files=self.FDfiles, wateridx=self.wateridx)
+            self._FDBdat.update(OGFDdat)
+            RotDict = self.spiny_spin(FDBdat=OGFDdat, massarray=self.massarray)
+            self._FDBdat.update(RotDict)
+            DispsDict = self.calc_dXdR_disps(RotDict=RotDict, wateridx=self.wateridx, massarray=self.massarray)
+            self._FDBdat.update(DispsDict)
+        return self._FDBdat
+
+    @property
+    def waterIntCoords(self):
+        if self._waterIntCoords is None:
+            HOH, R12, R23 = self.calcInternals(coords=self.EQcartesians, wateridx=self.wateridx)
+            self._waterIntCoords = {"HOH": HOH, "R12": R12, "R23": R23}
+        return self._waterIntCoords
+
+    @property
+    def HarmFreqs(self):
+        if self._HarmFreqs is None:
+            self._HarmFreqs, self._HarmDisps = self.pullHarmFreqs(self.eqlog)
+        return self._HarmFreqs
+
+    @property
+    def HarmDisps(self):
+        if self._HarmDisps is None:
+            self._HarmFreqs, self._HarmDisps = self.pullHarmFreqs(self.eqlog)
+        return self._HarmDisps
+
+    def pullWaterIdx(self):
+        """ The isotopologue type is 1 H2O, 2 D2O, 1 D3O. This sets the `wateridx` property to the appropriately
+         python indexed list ordered [O, H, H] to be used throughout the class and analysis code
+         :return: the indices of the H2O in a given istopologue
+         :rtype: list of ints
+         """
+        if self.isotopologue == "Hw1":
+            wateridx = [4, 5, 6]
+        elif self.isotopologue == "Hw2":
+            wateridx = [7, 8, 9]
+        elif self.isotopologue == "Hw3":
+            wateridx = [10, 11, 12]
+        else:
+            wateridx = None
+        return wateridx
+
+    def getAtoms(self):
+        """ for ALL isotopologues of the tetramer plus ring the atom ordering is D3O and then O H H, we start with
+            a full deuterated atom string then go through case by case to set the hydrogen/deuteriums
+        :return: atoms of the tetramer plus ring ordered as they are in the Gaussian Job Files (gjf)
+        :rtype: list of strings
+        """
+        if self.isotopologue == "allH":
+            atomarray = ["O", "H", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H"]
+        else:
+            atomarray = ["O", "D", "D", "D", "O", "D", "D", "O", "D", "D", "O", "D", "D"]
+        # now go through and assign H based off wateridx
+        atomarray[self.wateridx[1]] = "H"
+        atomarray[self.wateridx[2]] = "H"
+        return atomarray
+
 class BuildPentCage(BuildWaterCluster):
-    def __init__(self, num_waters=None, isotopologue=None, FDBstep=None):
-        super().__init__(num_waters, isotopologue, FDBstep)
+    def __init__(self, num_atoms=None, isotopologue=None, FDBstep=None):
+        super().__init__(num_atoms, isotopologue, FDBstep)
         self.waterNum = self.isotopologue[-1]
         self._ClusterDir = None  # Directory with specific cluster data
         self._wateridx = None  # python index of which molecules are the H2O (vs D2O)
@@ -1077,8 +1371,8 @@ class BuildPentCage(BuildWaterCluster):
         return atomarray
 
 class BuildPentRing(BuildWaterCluster):
-    def __init__(self, num_waters=None, isotopologue=None, FDBstep=None):
-        super().__init__(num_waters, isotopologue, FDBstep)
+    def __init__(self, num_atoms=None, isotopologue=None, FDBstep=None):
+        super().__init__(num_atoms, isotopologue, FDBstep)
         self.waterNum = self.isotopologue[-1]
         self._ClusterDir = None  # Directory with specific cluster data
         self._wateridx = None  # python index of which molecules are the H2O (vs D2O)
@@ -1236,9 +1530,161 @@ class BuildPentRing(BuildWaterCluster):
             atomarray[self.wateridx[2]] = "H"
         return atomarray
 
+class BuildPentPlusRing(BuildWaterCluster):
+    def __init__(self, num_atoms=None, isotopologue=None, FDBstep=None):
+        super().__init__(num_atoms, isotopologue, FDBstep)
+        self.waterNum = self.isotopologue[-1]
+        self._ClusterDir = None  # Directory with specific cluster data
+        self._wateridx = None  # python index of which molecules are the H2O (vs D2O)
+        self._WaterDir = None  # Directory with data for specific H2O - 5 D2O isotopologue
+        self._atomarray = None  # list of Atom names in the order of the Gaussian input/output
+        self._massarray = None  # list of corresponding masses
+        self._eqfchk = None  # path/filename of the data for the equilibrium structure (fchk of anharmonic calc)
+        self._eqlog = None  # path/filename of the data for the equilibrium structure (log of anharmonic calc)
+        self._EQcartesians = None  # all cartesian coordinates at the equilibrium for given isotopologue
+        self._FDfiles = None  # list of the fchk files for the 5pt FD scan
+        self._FDBdat = None  # dictionary of fchk data for angle scan of `self.FDBstep` degrees (5 pts)
+        self._waterIntCoords = None  # dictionary of water internal coordinates (from eq fchk - all H)
+        self._HarmFreqs = None
+        self._HarmDisps = None  # Harmonic displacements for each atom corresponding to ^ frequencies
+
+    @property
+    def ClusterDir(self):
+        """uses os to pull the directory where all data for this project is stored"""
+        if self._ClusterDir is None:
+            self._ClusterDir = os.path.join(self.MainDir, "pentamer_pls")
+        return self._ClusterDir
+
+    @property
+    def wateridx(self):
+        if self._wateridx is None:
+            self._wateridx = self.pullWaterIdx()
+        return self._wateridx
+
+    @property
+    def WaterDir(self):
+        if self._WaterDir is None:
+            if self.wateridx is None:
+                self._WaterDir = None
+            else:
+                self._WaterDir = os.path.join(self.ClusterDir, f"Water{self.waterNum}")
+        return self._WaterDir
+
+    @property
+    def atomarray(self):
+        if self._atomarray is None:
+            self._atomarray = self.getAtoms()
+        return self._atomarray
+
+    @property
+    def massarray(self):
+        if self._massarray is None:
+            self._massarray = self.get_masses(self.atomarray)
+        return self._massarray
+
+    @property
+    def eqfchk(self):
+        if self._eqfchk is None:
+            if self.wateridx is None:
+                self._eqfchk = os.path.join(self.ClusterDir, f"w5pR_{self.isotopologue}.fchk")
+            else:
+                self._eqfchk = os.path.join(self.WaterDir, f"w5pR_{self.isotopologue}.fchk")
+        return self._eqfchk
+
+    @property
+    def eqlog(self):
+        if self._eqlog is None:
+            if self.wateridx is None:
+                self._eqlog = os.path.join(self.ClusterDir, f"w5pR_{self.isotopologue}.log")
+            else:
+                self._eqlog = os.path.join(self.WaterDir, f"w5pR_{self.isotopologue}.log")
+        return self._eqlog
+
+    @property
+    def EQcartesians(self):
+        if self._EQcartesians is None:
+            self._EQcartesians = self.getCarts(self.eqfchk)
+        return self._EQcartesians
+
+    @property
+    def FDfiles(self):
+        if self.FDBstep == "0.5":
+            self._FDfiles = [os.path.join(self.WaterDir, f"w5pR_Hw{self.waterNum}_m1.fchk"),
+                             os.path.join(self.WaterDir, f"w5pR_Hw{self.waterNum}_m0.fchk"),
+                             os.path.join(self.WaterDir, f"w5pR_Hw{self.waterNum}.fchk"),
+                             os.path.join(self.WaterDir, f"w5pR_Hw{self.waterNum}_p0.fchk"),
+                             os.path.join(self.WaterDir, f"w5pR_Hw{self.waterNum}_p1.fchk")]
+        else:
+            raise Exception(f"Can find data with {self.FDBstep} step size.")
+        return self._FDfiles
+
+    @property
+    def FDBdat(self):
+        if self._FDBdat is None:
+            self._FDBdat = dict()
+            OGFDdat = self.getFDdat(fchk_files=self.FDfiles, wateridx=self.wateridx)
+            self._FDBdat.update(OGFDdat)
+            RotDict = self.spiny_spin(FDBdat=OGFDdat, massarray=self.massarray)
+            self._FDBdat.update(RotDict)
+            DispsDict = self.calc_dXdR_disps(RotDict=RotDict, wateridx=self.wateridx, massarray=self.massarray)
+            self._FDBdat.update(DispsDict)
+        return self._FDBdat
+
+    @property
+    def waterIntCoords(self):
+        if self._waterIntCoords is None:
+            HOH, R12, R23 = self.calcInternals(coords=self.EQcartesians, wateridx=self.wateridx)
+            self._waterIntCoords = {"HOH": HOH, "R12": R12, "R23": R23}
+        return self._waterIntCoords
+
+    @property
+    def HarmFreqs(self):
+        if self._HarmFreqs is None:
+            self._HarmFreqs, self._HarmDisps = self.pullHarmFreqs(self.eqlog)
+        return self._HarmFreqs
+
+    @property
+    def HarmDisps(self):
+        if self._HarmDisps is None:
+            self._HarmFreqs, self._HarmDisps = self.pullHarmFreqs(self.eqlog)
+        return self._HarmDisps
+
+    def pullWaterIdx(self):
+        """ The isotopologue type is 1 H2O, 3 D2O, 1 D3O. This sets the `wateridx` property to the appropriately
+         python indexed list ordered [O, H, H] to be used throughout the class and analysis code
+         :return: the indices of the H2O in a given istopologue
+         :rtype: list of ints
+         """
+        if self.isotopologue == "Hw1":
+            wateridx = [4, 5, 6]
+        elif self.isotopologue == "Hw2":
+            wateridx = [7, 8, 9]
+        elif self.isotopologue == "Hw3":
+            wateridx = [10, 11, 12]
+        elif self.isotopologue == "Hw4":
+            wateridx = [13, 14, 15]
+        else:
+            wateridx = None
+        return wateridx
+
+    def getAtoms(self):
+        """ for ALL isotopologues of the pentamer plus ring the atom ordering is D3O and then O H H, we start with
+            a full deuterated atom string then go through case by case to set the hydrogen/deuteriums
+        :return: atoms of the pentamer plus ring ordered as they are in the Gaussian Job Files (gjf)
+        :rtype: list of strings
+        """
+        if self.isotopologue == "allH":
+            atomarray = ["O", "H", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H"]
+        else:
+            atomarray = ["O", "D", "D", "D", "O", "D", "D", "O", "D", "D", "O", "D", "D", "O", "D", "D"]
+        # now go through and assign H based off wateridx
+        atomarray[self.wateridx[1]] = "H"
+        atomarray[self.wateridx[2]] = "H"
+        return atomarray
+
 class BuildHexCage(BuildWaterCluster):
-    def __init__(self, num_waters=None, isotopologue=None, FDBstep=None):
-        super().__init__(num_waters, isotopologue, FDBstep)
+    def __init__(self, num_atoms=None, isotopologue=None, FDBstep=None):
+        super().__init__(num_atoms, isotopologue, FDBstep)
         self.waterNum = self.isotopologue[-1]
         self._ClusterDir = None  # Directory with specific cluster data
         self._wateridx = None  # python index of which molecules are the H2O (vs D2O)
@@ -1407,8 +1853,8 @@ class BuildHexCage(BuildWaterCluster):
         return atomarray
 
 class BuildHexPrism(BuildWaterCluster):
-    def __init__(self, num_waters=None, isotopologue=None, FDBstep=None):
-        super().__init__(num_waters, isotopologue, FDBstep)
+    def __init__(self, num_atoms=None, isotopologue=None, FDBstep=None):
+        super().__init__(num_atoms, isotopologue, FDBstep)
         self.waterNum = self.isotopologue[-1]
         self._ClusterDir = None  # Directory with specific cluster data
         self._wateridx = None  # python index of which molecules are the H2O (vs D2O)
@@ -1574,5 +2020,159 @@ class BuildHexPrism(BuildWaterCluster):
         else:
             atomarray[self.wateridx[1]] = "H"
             atomarray[self.wateridx[2]] = "H"
+        return atomarray
+
+class BuildHexT1(BuildWaterCluster):
+    def __init__(self, num_atoms=None, isotopologue=None, FDBstep=None):
+        super().__init__(num_atoms, isotopologue, FDBstep)
+        self.waterNum = self.isotopologue[-1]
+        self._ClusterDir = None  # Directory with specific cluster data
+        self._wateridx = None  # python index of which molecules are the H2O (vs D2O)
+        self._WaterDir = None  # Directory with data for specific H2O - 5 D2O isotopologue
+        self._atomarray = None  # list of Atom names in the order of the Gaussian input/output
+        self._massarray = None  # list of corresponding masses
+        self._eqfchk = None  # path/filename of the data for the equilibrium structure (fchk of anharmonic calc)
+        self._eqlog = None  # path/filename of the data for the equilibrium structure (log of anharmonic calc)
+        self._EQcartesians = None  # all cartesian coordinates at the equilibrium for given isotopologue
+        self._FDfiles = None  # list of the fchk files for the 5pt FD scan
+        self._FDBdat = None  # dictionary of fchk data for angle scan of `self.FDBstep` degrees (5 pts)
+        self._waterIntCoords = None  # dictionary of water internal coordinates (from eq fchk - all H)
+        self._HarmFreqs = None
+        self._HarmDisps = None  # Harmonic displacements for each atom corresponding to ^ frequencies
+
+    @property
+    def ClusterDir(self):
+        """uses os to pull the directory where all data for this project is stored"""
+        if self._ClusterDir is None:
+            self._ClusterDir = os.path.join(self.MainDir, "hexamer_pls")
+        return self._ClusterDir
+
+    @property
+    def wateridx(self):
+        if self._wateridx is None:
+            self._wateridx = self.pullWaterIdx()
+        return self._wateridx
+
+    @property
+    def WaterDir(self):
+        if self._WaterDir is None:
+            if self.wateridx is None:
+                self._WaterDir = None
+            else:
+                self._WaterDir = os.path.join(self.ClusterDir, f"Water{self.waterNum}")
+        return self._WaterDir
+
+    @property
+    def atomarray(self):
+        if self._atomarray is None:
+            self._atomarray = self.getAtoms()
+        return self._atomarray
+
+    @property
+    def massarray(self):
+        if self._massarray is None:
+            self._massarray = self.get_masses(self.atomarray)
+        return self._massarray
+
+    @property
+    def eqfchk(self):
+        if self._eqfchk is None:
+            if self.wateridx is None:
+                self._eqfchk = os.path.join(self.ClusterDir, f"w6pT1_{self.isotopologue}.fchk")
+            else:
+                self._eqfchk = os.path.join(self.WaterDir, f"w6pT1_{self.isotopologue}.fchk")
+        return self._eqfchk
+
+    @property
+    def eqlog(self):
+        if self._eqlog is None:
+            if self.wateridx is None:
+                self._eqlog = os.path.join(self.ClusterDir, f"w6pT1_{self.isotopologue}.log")
+            else:
+                self._eqlog = os.path.join(self.WaterDir, f"w6pT1_{self.isotopologue}.log")
+        return self._eqlog
+
+    @property
+    def EQcartesians(self):
+        if self._EQcartesians is None:
+            self._EQcartesians = self.getCarts(self.eqfchk)
+        return self._EQcartesians
+
+    @property
+    def FDfiles(self):
+        if self.FDBstep == "0.5":
+            self._FDfiles = [os.path.join(self.WaterDir, f"w6pT1_Hw{self.waterNum}_m1.fchk"),
+                             os.path.join(self.WaterDir, f"w6pT1_Hw{self.waterNum}_m0.fchk"),
+                             os.path.join(self.WaterDir, f"w6pT1_Hw{self.waterNum}.fchk"),
+                             os.path.join(self.WaterDir, f"w6pT1_Hw{self.waterNum}_p0.fchk"),
+                             os.path.join(self.WaterDir, f"w6pT1_Hw{self.waterNum}_p1.fchk")]
+        else:
+            raise Exception(f"Can find data with {self.FDBstep} step size.")
+        return self._FDfiles
+
+    @property
+    def FDBdat(self):
+        if self._FDBdat is None:
+            self._FDBdat = dict()
+            OGFDdat = self.getFDdat(fchk_files=self.FDfiles, wateridx=self.wateridx)
+            self._FDBdat.update(OGFDdat)
+            RotDict = self.spiny_spin(FDBdat=OGFDdat, massarray=self.massarray)
+            self._FDBdat.update(RotDict)
+            DispsDict = self.calc_dXdR_disps(RotDict=RotDict, wateridx=self.wateridx, massarray=self.massarray)
+            self._FDBdat.update(DispsDict)
+        return self._FDBdat
+
+    @property
+    def waterIntCoords(self):
+        if self._waterIntCoords is None:
+            HOH, R12, R23 = self.calcInternals(coords=self.EQcartesians, wateridx=self.wateridx)
+            self._waterIntCoords = {"HOH": HOH, "R12": R12, "R23": R23}
+        return self._waterIntCoords
+
+    @property
+    def HarmFreqs(self):
+        if self._HarmFreqs is None:
+            self._HarmFreqs, self._HarmDisps = self.pullHarmFreqs(self.eqlog)
+        return self._HarmFreqs
+
+    @property
+    def HarmDisps(self):
+        if self._HarmDisps is None:
+            self._HarmFreqs, self._HarmDisps = self.pullHarmFreqs(self.eqlog)
+        return self._HarmDisps
+
+    def pullWaterIdx(self):
+        """ The isotopologue type is 1 H2O, 5 D2O, 1 D3O. This sets the `wateridx` property to the appropriately
+         python indexed list ordered [O, H, H] to be used throughout the class and analysis code
+         :return: the indices of the H2O in a given istopologue
+         :rtype: list of ints
+         """
+        if self.isotopologue == "Hw1":
+            wateridx = [4, 5, 6]
+        elif self.isotopologue == "Hw2":
+            wateridx = [7, 8, 9]
+        elif self.isotopologue == "Hw3":
+            wateridx = [10, 11, 12]
+        elif self.isotopologue == "Hw4":
+            wateridx = [13, 14, 15]
+        elif self.isotopologue == "Hw5":
+            wateridx = [16, 17, 18]
+        else:
+            wateridx = None
+        return wateridx
+
+    def getAtoms(self):
+        """ for ALL isotopologues of the hexamer plus T1 the atom ordering is D3O and then O H H, we start with
+            a list of "O" then go through case by case to set the hydrogen/deuteriums
+        :return: atoms of the hexamer plus T1 ordered as they are in the Gaussian Job Files (gjf)
+        :rtype: list of strings
+        """
+        if self.isotopologue == "allH":
+            atomarray = ["O", "H", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H", "O", "H", "H"]
+        else:
+            atomarray = ["O", "D", "D", "D", "O", "D", "D", "O", "D", "D", "O", "D", "D", "O", "D", "D", "O", "D", "D"]
+        # now go through and assign H based off wateridx
+        atomarray[self.wateridx[1]] = "H"
+        atomarray[self.wateridx[2]] = "H"
         return atomarray
 

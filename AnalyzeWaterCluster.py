@@ -22,7 +22,7 @@ class AnalyzeOneWaterCluster:
     def Gphiphi(self):
         if self._Gphiphi is None:
             # masses are hard coded so that this plays nice with monomer (H, O, H) and tetramer (O, H, H)
-            if self.ClusterObj.num_waters == 1 or self.ClusterObj.isotopologue.find("w") > 0:
+            if self.ClusterObj.num_atoms == 3 or self.ClusterObj.isotopologue.find("w") > 0:
                 self._Gphiphi = GmatrixStretchBend.calc_Gphiphi(m1=Constants.mass("H", to_AU=True),
                                                                 m2=Constants.mass("O", to_AU=True),
                                                                 m3=Constants.mass("H", to_AU=True),
@@ -225,7 +225,7 @@ class AnalyzeOneWaterCluster:
             if self.StretchFrequency[i] == 0:
                 pass
             else:
-                print(Constants.convert(self.StretchFrequency[i], "wavenumbers", to_AU=False))
+                print(f"OH {i} Freq:", Constants.convert(self.StretchFrequency[i], "wavenumbers", to_AU=False))
                 deltaR = (1 / 2) * self.Grr / self.StretchFrequency[i]
                 freq = deltaT * deltaR * (self.StretchFrequency[i] + self.FDFrequency)
                 freq_wave = Constants.convert(freq, "wavenumbers", to_AU=False)
