@@ -52,7 +52,8 @@ class PlotSpectrum:
         plt.savefig(f"{self.SaveDir}/{self.filetag}SBSticks.jpg")
 
 class Plots:
-    def __init__(self):
+    def __init__(self, DataSet):
+        self.DataSet = DataSet  # string identifying data being plotted
         self.rawData = np.loadtxt("SBdata_June9.csv", delimiter=",", skiprows=1, dtype=str)  # UPDATE IF DATA UPDATES
         self.DataHeaders = ["WaterNum", "Number of Acceptors", "Number of Donors", "Number of Acceptors (HOH)",
                             "Number of Donors (HOH)", "OHO Angle (Degrees)", "OO Distance ($\mathrm{\AA}$)",
@@ -69,13 +70,24 @@ class Plots:
                           "AA": "fuchsia",
                           "AAD": "crimson",
                           "AADD": "darkblue"}
+        # self.MarkerDict = {"Monomer": "o",  <-- original
+        #                    "Dimer": "^",
+        #                    "4-Cage": "P",
+        #                    "4-Three-One": "X",
+        #                    "5-Cage": "D",
+        #                    "5-Ring": "d",
+        #                    "6-Cage": "s"}
         self.MarkerDict = {"Monomer": "o",
-                           "Dimer": "^",
+                           "Dimer": "o",
                            "4-Cage": "P",
-                           "4-Three-One": "X",
+                           "4-Three-One": "P",
                            "5-Cage": "D",
-                           "5-Ring": "d",
-                           "6-Cage": "s"}
+                           "5-Ring": "D",
+                           "6-Cage": "v",
+                           "4+-Ring": "X",
+                           "5+-Ring": "d",
+                           "6+-T1": "^",
+                           "4-Cage-TZ": "*"}
         self._FigDir = None
         self._DataDict = None
 
@@ -149,6 +161,34 @@ class Plots:
                 pass
             else:
                 data4real[key] = np.array(dataDict[key])
+        if self.DataSet == "All":
+            pass
+        elif self.DataSet == "Neutral":  # if "+" IS in the key delete it
+            keys_to_delete = []
+            for i in data4real.keys():
+                if i.find("+") >= 0:
+                    keys_to_delete.append(i)
+                else:
+                    pass
+            [data4real.pop(key) for key in keys_to_delete]
+        elif self.DataSet == "Charged":
+            keys_to_delete = []
+            for i in data4real.keys():
+                if i.find("+") <= 0:  # "if "+" isn't in the key delete it
+                    keys_to_delete.append(i)
+                else:
+                    pass
+            [data4real.pop(key) for key in keys_to_delete]
+        elif self.DataSet == "DZvsTZ":
+            keys_to_delete = []
+            for i in data4real.keys():
+                if i.find("4-Cage") <= 0:  # if "4-Cage" isn't in the key delete it
+                    keys_to_delete.append(i)
+                else:
+                    pass
+            [data4real.pop(key) for key in keys_to_delete]
+        else:
+            raise Exception(f"Data set {self.DataSet} is not defined.")
         return data4real
 
     def plotOHOvsSBI(self):
@@ -183,7 +223,7 @@ class Plots:
                                         label=HOHtype))
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, "OHOvsSBI.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"OHOvsSBI_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotOHOvsSI(self):
         plt.rcParams.update({'font.size': 20})
@@ -217,7 +257,7 @@ class Plots:
                                         label=HOHtype))
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, "OHOvsSI.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"OHOvsSI_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotOHOvsBI(self):
         plt.rcParams.update({'font.size': 20})
@@ -251,7 +291,7 @@ class Plots:
                                         label=HOHtype))
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, "OHOvsBI.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"OHOvsBI_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotOOvsSBI(self):
         plt.rcParams.update({'font.size': 20})
@@ -285,7 +325,7 @@ class Plots:
                                         label=HOHtype))
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, "OOvsSBI.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"OOvsSBI_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotOOvsSI(self):
         plt.rcParams.update({'font.size': 20})
@@ -319,7 +359,7 @@ class Plots:
                                         label=HOHtype))
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, "OOvsSI.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"OOvsSI_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotOOvsBI(self):
         plt.rcParams.update({'font.size': 20})
@@ -353,7 +393,7 @@ class Plots:
                                         label=HOHtype))
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, "OOvsBI.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"OOvsBI_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotSBfreqvsSBI(self):
         plt.rcParams.update({'font.size': 20})
@@ -386,7 +426,7 @@ class Plots:
                                         label=HOHtype))
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, "SBFreqvsSBI.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"SBFreqvsSBI_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotSfreqvsSI(self):
         plt.rcParams.update({'font.size': 20})
@@ -420,7 +460,7 @@ class Plots:
 
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, "SFreqvsSI.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"SFreqvsSI_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotBfreqvsBI(self):
         plt.rcParams.update({'font.size': 20})
@@ -454,7 +494,7 @@ class Plots:
 
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, "BFreqvsBI.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"BFreqvsBI_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotVPTvsSBI(self):
         plt.rcParams.update({'font.size': 20})
@@ -489,7 +529,7 @@ class Plots:
 
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, "VPT2vsSBI.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"VPT2vsSBI_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotVPTvsSBI_AVG(self):
         plt.rcParams.update({'font.size': 20})
@@ -523,7 +563,7 @@ class Plots:
                                         label=HOHtype))
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, "VPT2vsSBI_AVG.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"VPT2vsSBI_AVG_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotSIvsSBI(self):
         plt.rcParams.update({'font.size': 20})
@@ -557,7 +597,7 @@ class Plots:
 
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, "SIvsSBI.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"SIvsSBI_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotDerivRatiovsSBI(self):
         plt.rcParams.update({'font.size': 20})
@@ -590,4 +630,4 @@ class Plots:
                                         label=HOHtype))
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, "DerivRatiovsVPT.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"DerivRatiovsVPT_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")

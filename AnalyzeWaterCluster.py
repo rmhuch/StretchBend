@@ -136,7 +136,6 @@ class AnalyzeOneWaterCluster:
         intensity = np.sum(comp_intents)
         return intensity
 
-
     def calc_SBDipoleDerivs(self):
         from McUtils.Zachary import finite_difference
         # O H H ordered
