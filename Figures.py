@@ -54,14 +54,14 @@ class PlotSpectrum:
 class Plots:
     def __init__(self, DataSet):
         self.DataSet = DataSet  # string identifying data being plotted
-        self.rawData = np.loadtxt("SBdata_June9.csv", delimiter=",", skiprows=1, dtype=str)  # UPDATE IF DATA UPDATES
+        self.rawData = np.loadtxt("SBdata_Aug4.csv", delimiter=",", skiprows=1, dtype=str)  # UPDATE IF DATA UPDATES
         self.DataHeaders = ["WaterNum", "Number of Acceptors", "Number of Donors", "Number of Acceptors (HOH)",
                             "Number of Donors (HOH)", "OHO Angle (Degrees)", "OO Distance ($\mathrm{\AA}$)",
                             "Bend Frequency ($\mathrm{cm}^{-1}$)", "Bend Intensity (km/mol)",
                             "Stretch Frequency ($\mathrm{cm}^{-1}$)", "Stretch Intensity (km/mol)",
                             "Stretch-Bend Frequency ($\mathrm{cm}^{-1}$)", "Stretch-Bend Intensity (km/mol)",
                             "VPT2 Stretch-Bend Intensity (km/mol)", "Average Stretch-Bend Intensity (km/mol)",
-                            r"$\rm{\frac{\partial^2\mu}{\partial r \partial\theta} \ \frac{\partial\mu}{\partial r}$"]
+                            r"$\mathrm{\frac{\partial ^2 \mu}{\partial r \partial \theta} / \frac{\partial \mu}{\partial r}}$"]
         self.ColorDict = {"None": "gold",
                           "D": "purple",
                           "A": "darkgray",
@@ -78,7 +78,7 @@ class Plots:
         #                    "5-Ring": "d",
         #                    "6-Cage": "s"}
         self.MarkerDict = {"Monomer": "o",
-                           "Dimer": "o",
+                           "Dimer": "h",
                            "4-Cage": "P",
                            "4-Three-One": "P",
                            "5-Cage": "D",
@@ -88,6 +88,15 @@ class Plots:
                            "5+-Ring": "d",
                            "6+-T1": "^",
                            "4-Cage-TZ": "*"}
+        self.LabelDict = {"o": "H$_{2}$O",  # used to call the labels for the legend
+                          "h": "(H$_{2}$O)$_{2}$",
+                          "P": "(H$_{2}$O)$_{4}$",
+                          "D": "(H$_{2}$O)$_{5}$",
+                          "v": "(H$_{2}$O)$_{6}$",
+                          "X": "H$^{+}$(H$_{2}$O)$_{4}$",
+                          "d": "H$^{+}$(H$_{2}$O)$_{5}$",
+                          "^": "H$^{+}$(H$_{2}$O)$_{6}$",
+                          "*": "(H$_{2}$O)$_{4}$ - TZ"}
         self._FigDir = None
         self._DataDict = None
 
@@ -161,12 +170,18 @@ class Plots:
                 pass
             else:
                 data4real[key] = np.array(dataDict[key])
-        if self.DataSet == "All":
-            pass
-        elif self.DataSet == "Neutral":  # if "+" IS in the key delete it
+        if self.DataSet == "All":  # include neutral and charged DZ clusters
             keys_to_delete = []
             for i in data4real.keys():
-                if i.find("+") >= 0:
+                if i.find("TZ") >= 0:
+                    keys_to_delete.append(i)
+                else:
+                    pass
+            [data4real.pop(key) for key in keys_to_delete]
+        elif self.DataSet == "Neutral":  # if "+" IS in the key delete it (ONLY DZ clusters)
+            keys_to_delete = []
+            for i in data4real.keys():
+                if i.find("+") >= 0 or i.find("TZ") >= 0:
                     keys_to_delete.append(i)
                 else:
                     pass
@@ -182,7 +197,7 @@ class Plots:
         elif self.DataSet == "DZvsTZ":
             keys_to_delete = []
             for i in data4real.keys():
-                if i.find("4-Cage") <= 0:  # if "4-Cage" isn't in the key delete it
+                if i.find("4-Cage") < 0:  # if "4-Cage" isn't in the key delete it
                     keys_to_delete.append(i)
                 else:
                     pass
@@ -204,20 +219,20 @@ class Plots:
                     y = OH[12]
                     plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                              markersize=10)
-                    if key not in legend_markers:
-                        legend_markers.append(key)
+                    if self.MarkerDict[key] not in legend_markers:
+                        legend_markers.append(self.MarkerDict[key])
                     if HOHtype not in legend_colors:
                         legend_colors.append(HOHtype)
                 else:
                     pass
-        plt.xlim(120, 180)
-        plt.ylim(0, 15)
+        plt.xlim(130, 180)
+        plt.ylim(0, 20)
         plt.xlabel(self.DataHeaders[5])
         plt.ylabel(self.DataHeaders[12])
         legendElements = []
         for key in legend_markers:
-            legendElements.append(Line2D([0], [0], marker=self.MarkerDict[key], markerfacecolor='k', color='w',
-                                         markersize=10, label=key))
+            legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
+                                         markersize=10, label=self.LabelDict[key]))
         for HOHtype in legend_colors:
             legendElements.append(Patch(facecolor=self.ColorDict[HOHtype], edgecolor=self.ColorDict[HOHtype],
                                         label=HOHtype))
@@ -238,20 +253,20 @@ class Plots:
                     y = OH[10]
                     plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                              markersize=10)
-                    if key not in legend_markers:
-                        legend_markers.append(key)
+                    if self.MarkerDict[key] not in legend_markers:
+                        legend_markers.append(self.MarkerDict[key])
                     if HOHtype not in legend_colors:
                         legend_colors.append(HOHtype)
                 else:
                     pass
-        plt.xlim(120, 180)
-        plt.ylim(0, 900)
+        plt.xlim(130, 180)
+        plt.ylim(0, 1000)
         plt.xlabel(self.DataHeaders[5])
         plt.ylabel(self.DataHeaders[10])
         legendElements = []
         for key in legend_markers:
-            legendElements.append(Line2D([0], [0], marker=self.MarkerDict[key], markerfacecolor='k', color='w',
-                                         markersize=10, label=key))
+            legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
+                                         markersize=10, label=self.LabelDict[key]))
         for HOHtype in legend_colors:
             legendElements.append(Patch(facecolor=self.ColorDict[HOHtype], edgecolor=self.ColorDict[HOHtype],
                                         label=HOHtype))
@@ -272,20 +287,20 @@ class Plots:
                     y = OH[8]
                     plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                              markersize=10)
-                    if key not in legend_markers:
-                        legend_markers.append(key)
+                    if self.MarkerDict[key] not in legend_markers:
+                        legend_markers.append(self.MarkerDict[key])
                     if HOHtype not in legend_colors:
                         legend_colors.append(HOHtype)
                 else:
                     pass
-        plt.xlim(120, 180)
-        plt.ylim(0, 100)
+        plt.xlim(130, 180)
+        plt.ylim(0, 90)
         plt.xlabel(self.DataHeaders[5])
         plt.ylabel(self.DataHeaders[8])
         legendElements = []
         for key in legend_markers:
-            legendElements.append(Line2D([0], [0], marker=self.MarkerDict[key], markerfacecolor='k', color='w',
-                                         markersize=10, label=key))
+            legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
+                                         markersize=10, label=self.LabelDict[key]))
         for HOHtype in legend_colors:
             legendElements.append(Patch(facecolor=self.ColorDict[HOHtype], edgecolor=self.ColorDict[HOHtype],
                                         label=HOHtype))
@@ -306,8 +321,8 @@ class Plots:
                     y = OH[12]
                     plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                              markersize=10)
-                    if key not in legend_markers:
-                        legend_markers.append(key)
+                    if self.MarkerDict[key] not in legend_markers:
+                        legend_markers.append(self.MarkerDict[key])
                     if HOHtype not in legend_colors:
                         legend_colors.append(HOHtype)
                 else:
@@ -318,8 +333,8 @@ class Plots:
         plt.ylabel(self.DataHeaders[12])
         legendElements = []
         for key in legend_markers:
-            legendElements.append(Line2D([0], [0], marker=self.MarkerDict[key], markerfacecolor='k', color='w',
-                                         markersize=10, label=key))
+            legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
+                                         markersize=10, label=self.LabelDict[key]))
         for HOHtype in legend_colors:
             legendElements.append(Patch(facecolor=self.ColorDict[HOHtype], edgecolor=self.ColorDict[HOHtype],
                                         label=HOHtype))
@@ -340,20 +355,20 @@ class Plots:
                     y = OH[10]
                     plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                              markersize=10)
-                    if key not in legend_markers:
-                        legend_markers.append(key)
+                    if self.MarkerDict[key] not in legend_markers:
+                        legend_markers.append(self.MarkerDict[key])
                     if HOHtype not in legend_colors:
                         legend_colors.append(HOHtype)
                 else:
                     pass
         plt.xlim(2.65, 3.1)
-        plt.ylim(0, 900)
+        plt.ylim(0, 1000)
         plt.xlabel(self.DataHeaders[6])
         plt.ylabel(self.DataHeaders[10])
         legendElements = []
         for key in legend_markers:
-            legendElements.append(Line2D([0], [0], marker=self.MarkerDict[key], markerfacecolor='k', color='w',
-                                         markersize=10, label=key))
+            legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
+                                         markersize=10, label=self.LabelDict[key]))
         for HOHtype in legend_colors:
             legendElements.append(Patch(facecolor=self.ColorDict[HOHtype], edgecolor=self.ColorDict[HOHtype],
                                         label=HOHtype))
@@ -374,20 +389,20 @@ class Plots:
                     y = OH[8]
                     plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                              markersize=10)
-                    if key not in legend_markers:
-                        legend_markers.append(key)
+                    if self.MarkerDict[key] not in legend_markers:
+                        legend_markers.append(self.MarkerDict[key])
                     if HOHtype not in legend_colors:
                         legend_colors.append(HOHtype)
                 else:
                     pass
         plt.xlim(2.65, 3.1)
-        plt.ylim(0, 100)
+        plt.ylim(0, 90)
         plt.xlabel(self.DataHeaders[6])
-        plt.ylabel(self.DataHeaders[-5])
+        plt.ylabel(self.DataHeaders[8])
         legendElements = []
         for key in legend_markers:
-            legendElements.append(Line2D([0], [0], marker=self.MarkerDict[key], markerfacecolor='k', color='w',
-                                         markersize=10, label=key))
+            legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
+                                         markersize=10, label=self.LabelDict[key]))
         for HOHtype in legend_colors:
             legendElements.append(Patch(facecolor=self.ColorDict[HOHtype], edgecolor=self.ColorDict[HOHtype],
                                         label=HOHtype))
@@ -407,8 +422,8 @@ class Plots:
                 y = OH[12]
                 plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                          markersize=10)
-                if key not in legend_markers:
-                    legend_markers.append(key)
+                if self.MarkerDict[key] not in legend_markers:
+                    legend_markers.append(self.MarkerDict[key])
                 if HOHtype not in legend_colors:
                     legend_colors.append(HOHtype)
                 else:
@@ -419,8 +434,8 @@ class Plots:
         plt.ylabel(self.DataHeaders[12])
         legendElements = []
         for key in legend_markers:
-            legendElements.append(Line2D([0], [0], marker=self.MarkerDict[key], markerfacecolor='k', color='w',
-                                         markersize=10, label=key))
+            legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
+                                         markersize=10, label=self.LabelDict[key]))
         for HOHtype in legend_colors:
             legendElements.append(Patch(facecolor=self.ColorDict[HOHtype], edgecolor=self.ColorDict[HOHtype],
                                         label=HOHtype))
@@ -440,20 +455,20 @@ class Plots:
                 y = OH[10]
                 plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                          markersize=10)
-                if key not in legend_markers:
-                    legend_markers.append(key)
+                if self.MarkerDict[key] not in legend_markers:
+                    legend_markers.append(self.MarkerDict[key])
                 if HOHtype not in legend_colors:
                     legend_colors.append(HOHtype)
                 else:
                     pass
         plt.xlim(3200, 4000)
-        plt.ylim(0, 900)
+        plt.ylim(0, 1000)
         plt.xlabel(self.DataHeaders[9])
         plt.ylabel(self.DataHeaders[10])
         legendElements = []
         for key in legend_markers:
-            legendElements.append(Line2D([0], [0], marker=self.MarkerDict[key], markerfacecolor='k', color='w',
-                                         markersize=10, label=key))
+            legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
+                                         markersize=10, label=self.LabelDict[key]))
         for HOHtype in legend_colors:
             legendElements.append(Patch(facecolor=self.ColorDict[HOHtype], edgecolor=self.ColorDict[HOHtype],
                                         label=HOHtype))
@@ -474,20 +489,20 @@ class Plots:
                 y = OH[8]
                 plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                          markersize=10)
-                if key not in legend_markers:
-                    legend_markers.append(key)
+                if self.MarkerDict[key] not in legend_markers:
+                    legend_markers.append(self.MarkerDict[key])
                 if HOHtype not in legend_colors:
                     legend_colors.append(HOHtype)
                 else:
                     pass
         plt.xlim(1620, 1720)
-        plt.ylim(0, 100)
+        plt.ylim(0, 90)
         plt.xlabel(self.DataHeaders[7])
         plt.ylabel(self.DataHeaders[8])
         legendElements = []
         for key in legend_markers:
-            legendElements.append(Line2D([0], [0], marker=self.MarkerDict[key], markerfacecolor='k', color='w',
-                                         markersize=10, label=key))
+            legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
+                                         markersize=10, label=self.LabelDict[key]))
         for HOHtype in legend_colors:
             legendElements.append(Patch(facecolor=self.ColorDict[HOHtype], edgecolor=self.ColorDict[HOHtype],
                                         label=HOHtype))
@@ -508,8 +523,8 @@ class Plots:
                 y = OH[12]
                 plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                          markersize=10)
-                if key not in legend_markers:
-                    legend_markers.append(key)
+                if self.MarkerDict[key] not in legend_markers:
+                    legend_markers.append(self.MarkerDict[key])
                 if HOHtype not in legend_colors:
                     legend_colors.append(HOHtype)
                 else:
@@ -521,8 +536,8 @@ class Plots:
         plt.ylabel(self.DataHeaders[12])
         legendElements = []
         for key in legend_markers:
-            legendElements.append(Line2D([0], [0], marker=self.MarkerDict[key], markerfacecolor='k', color='w',
-                                         markersize=10, label=key))
+            legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
+                                         markersize=10, label=self.LabelDict[key]))
         for HOHtype in legend_colors:
             legendElements.append(Patch(facecolor=self.ColorDict[HOHtype], edgecolor=self.ColorDict[HOHtype],
                                         label=HOHtype))
@@ -543,8 +558,8 @@ class Plots:
                 y = OH[14]
                 plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                          markersize=10)
-                if key not in legend_markers:
-                    legend_markers.append(key)
+                if self.MarkerDict[key] not in legend_markers:
+                    legend_markers.append(self.MarkerDict[key])
                 if HOHtype not in legend_colors:
                     legend_colors.append(HOHtype)
                 else:
@@ -556,8 +571,8 @@ class Plots:
         plt.ylabel(self.DataHeaders[14])
         legendElements = []
         for key in legend_markers:
-            legendElements.append(Line2D([0], [0], marker=self.MarkerDict[key], markerfacecolor='k', color='w',
-                                         markersize=10, label=key))
+            legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
+                                         markersize=10, label=self.LabelDict[key]))
         for HOHtype in legend_colors:
             legendElements.append(Patch(facecolor=self.ColorDict[HOHtype], edgecolor=self.ColorDict[HOHtype],
                                         label=HOHtype))
@@ -577,20 +592,20 @@ class Plots:
                 y = OH[12]
                 plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                          markersize=10)
-                if key not in legend_markers:
-                    legend_markers.append(key)
+                if self.MarkerDict[key] not in legend_markers:
+                    legend_markers.append(self.MarkerDict[key])
                 if HOHtype not in legend_colors:
                     legend_colors.append(HOHtype)
                 else:
                     pass
-        plt.xlim(0, 900)
+        plt.xlim(0, 1000)
         plt.ylim(0, 20)
         plt.xlabel(self.DataHeaders[10])
         plt.ylabel(self.DataHeaders[12])
         legendElements = []
         for key in legend_markers:
-            legendElements.append(Line2D([0], [0], marker=self.MarkerDict[key], markerfacecolor='k', color='w',
-                                         markersize=10, label=key))
+            legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
+                                         markersize=10, label=self.LabelDict[key]))
         for HOHtype in legend_colors:
             legendElements.append(Patch(facecolor=self.ColorDict[HOHtype], edgecolor=self.ColorDict[HOHtype],
                                         label=HOHtype))
@@ -607,24 +622,57 @@ class Plots:
         for key in self.DataDict:
             for OH in self.DataDict[key]:
                 HOHtype = self.findHOHType(OH)
-                x = OH[13]
-                y = OH[12]
+                x = OH[12]
+                y = OH[15]
                 plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                          markersize=10)
-                if key not in legend_markers:
-                    legend_markers.append(key)
+                if self.MarkerDict[key] not in legend_markers:
+                    legend_markers.append(self.MarkerDict[key])
                 if HOHtype not in legend_colors:
                     legend_colors.append(HOHtype)
                 else:
                     pass
         plt.xlim(0, 20)
-        plt.ylim(0, 20)
-        plt.xlabel(self.DataHeaders[13])
-        plt.ylabel(self.DataHeaders[12])
+        plt.ylim(0, 2.5)
+        plt.xlabel(self.DataHeaders[12])
+        plt.ylabel(self.DataHeaders[15])
         legendElements = []
         for key in legend_markers:
-            legendElements.append(Line2D([0], [0], marker=self.MarkerDict[key], markerfacecolor='k', color='w',
-                                         markersize=10, label=key))
+            legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
+                                         markersize=10, label=self.LabelDict[key]))
+        for HOHtype in legend_colors:
+            legendElements.append(Patch(facecolor=self.ColorDict[HOHtype], edgecolor=self.ColorDict[HOHtype],
+                                        label=HOHtype))
+        plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.FigDir, f"DerivRatiovsSBI_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
+
+    def plotDerivRatiovsVPT(self):
+        plt.rcParams.update({'font.size': 20})
+        legend_markers = []
+        legend_colors = []
+        fig = plt.figure(figsize=(12, 8), dpi=216)
+        for key in self.DataDict:
+            for OH in self.DataDict[key]:
+                HOHtype = self.findHOHType(OH)
+                x = OH[13]
+                y = OH[15]
+                plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
+                         markersize=10)
+                if self.MarkerDict[key] not in legend_markers:
+                    legend_markers.append(self.MarkerDict[key])
+                if HOHtype not in legend_colors:
+                    legend_colors.append(HOHtype)
+                else:
+                    pass
+        plt.xlim(0, 20)
+        plt.ylim(0, 2.5)
+        plt.xlabel(self.DataHeaders[13])
+        plt.ylabel(self.DataHeaders[15])
+        legendElements = []
+        for key in legend_markers:
+            legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
+                                         markersize=10, label=self.LabelDict[key]))
         for HOHtype in legend_colors:
             legendElements.append(Patch(facecolor=self.ColorDict[HOHtype], edgecolor=self.ColorDict[HOHtype],
                                         label=HOHtype))
