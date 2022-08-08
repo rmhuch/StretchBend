@@ -4,6 +4,7 @@ from Converter import Constants
 from McUtils.Zachary import finite_difference
 from Rotator import *
 
+
 # helper function to calculate internal coords
 def calcInternals(coords, wateridx):
     r12 = []
@@ -18,6 +19,7 @@ def calcInternals(coords, wateridx):
     r12_array = np.array(r12)
     return np.round(HOH_array, 5), np.round(r12_array, 5)
 
+
 # locate and read in fchk files
 def get_fchkData(sys_string):
     from FChkInterpreter import FchkInterpreter
@@ -26,19 +28,18 @@ def get_fchkData(sys_string):
     fchk_files = glob.glob(os.path.join(mainDir, f"{sys_string}_FD*.fchk"))
     allDat = FchkInterpreter(*fchk_files)
     carts = allDat.cartesians
-    ens = allDat.MP2Energy
-    # wateridx = [3, 5, 4]  # calls to donor water in all "Octomer" structures
-    wateridx = [0, 1, 2]
-    # ordered this way so that "r12" is the shared proton
+    # ens = allDat.MP2Energy
+    # print(Constants.convert(ens - min(ens), "wavenumbers", to_AU=False))
+    if sys_string == "w1":
+        wateridx = [0, 1, 2]
+    else:
+        wateridx = [3, 5, 4]  # must be ordered this way because r is calculates using "vec 1"
     HOH, R12 = calcInternals(carts, wateridx)
-    inds = np.lexsort((HOH, R12))
-    print(HOH[inds], R12[inds])
-    min_ens = ens - min(ens)
-    print(Constants.convert(min_ens[inds], "wavenumbers", to_AU=False))
     dipoles = allDat.Dipoles
     dataDict = {"DataName": sys_string, "MainDir": mainDir, "HOH": np.unique(HOH), "ROH": np.unique(R12),
-                "Cartesians": carts, "Dipoles": dipoles}  # PUT INDS SORT BACK IN
+                "Cartesians": carts, "Dipoles": dipoles}
     return dataDict
+
 
 # pull and rotate coordinates and dipoles
 def rotate(dataDict):
@@ -69,7 +70,7 @@ def rotate(dataDict):
     else:
         rot_coords, rot_dips = inverter(r1_coords, r1_dips, inversion_atom)  # inversion of designated atom
     dipadedodas = rot_dips.reshape(len(all_coords), 3)
-    data_name = dataDict["DataName"]
+    data_name = dataDict["DataName"] + "_25pt"
     np.save(os.path.join(dataDict["MainDir"], f"{data_name}_FDrotcoords_OHO.npy"),
             rot_coords)
     np.save(os.path.join(dataDict["MainDir"], f"{data_name}_FDrotdips_OHO.npy"),
@@ -79,31 +80,95 @@ def rotate(dataDict):
     # print("saved xyz")
     return rot_coords, dipadedodas  # bohr & debye
 
-# use all 9 points to calculate mixed derivative
-def calcDipDeriv(dataDict):
+
+def calcDthetaDr(dataDict):
     data_name = dataDict["DataName"]
-    # if os.path.exists(os.path.join(dataDict["MainDir"], f"{data_name}_rotdips_OHO.npy")):
-    #     dips = np.load(os.path.join(dataDict["MainDir"], f"{data_name}_rotdips_OHO.npy"))
-    # else:
-    rot_coords, dips = rotate(dataDict)
-    # calculate each dr
-    dthetadr = np.zeros(3)  # return the x, y, and z dipole derivative
+    if os.path.exists(os.path.join(dataDict["MainDir"], f"{data_name}_25pt_FDrotdips_OHO.npy")):
+        dips = np.load(os.path.join(dataDict["MainDir"], f"{data_name}_25pt_FDrotdips_OHO.npy"))
+    else:
+        rot_coords, dips = rotate(dataDict)
+    # calculate each dtheta dr by simple 4pt FD
+    dthetadr_comps = np.zeros(3)
     for i, comp in enumerate(["X", "Y", "Z"]):
-        dtheta = np.zeros(3)
-        for step in np.arange(3):
-            if step == 0:
-                dipadodas = dips[0:3, i]
-            elif step == 1:
-                dipadodas = dips[3:6, i]
-            elif step == 2:
-                dipadodas = dips[6:, i]
-            dtheta[i] = finite_difference(dataDict["HOH"], dipadodas, 1, stencil=3, only_center=True)
-        # calculate dthetadr from dthetas
-        dthetadr[i] = finite_difference(dataDict["ROH"], dtheta, 1, stencil=3, only_center=True)
+        gridDips = dips[:, i].reshape((5, 5))
+        # pull needed FD points
+        mm = gridDips[1, 1]
+        pp = gridDips[3, 3]
+        mp = gridDips[1, 3]
+        pm = gridDips[3, 1]
+        # calculate step sizes
+        step_theta = dataDict["HOH"][2] - dataDict["HOH"][1]
+        step_r = dataDict["ROH"][2] - dataDict["ROH"][1]
+        # calculate dthetadr
+        dthetadr_comps[i] = (mm + pp - mp - pm) / (4 * step_theta * step_r)
+    dthetadr = np.linalg.norm(dthetadr_comps)
     return dthetadr
 
-if __name__ == '__main__':
-    DD = get_fchkData("w1")
-    dtdr = calcDipDeriv(DD)
-    print(dtdr)
+def calcDr(dataDict):
+    data_name = dataDict["DataName"]
+    if os.path.exists(os.path.join(dataDict["MainDir"], f"{data_name}_25pt_FDrotdips_OHO.npy")):
+        dips = np.load(os.path.join(dataDict["MainDir"], f"{data_name}_25pt_FDrotdips_OHO.npy"))
+    else:
+        rot_coords, dips = rotate(dataDict)
+    # calculate each dtheta dr by 3pt FD @ eq theta
+    dr_comps = np.zeros(3)
+    for i, comp in enumerate(["X", "Y", "Z"]):
+        gridDips = dips[:, i].reshape((5, 5))
+        # pull needed FD points
+        m = gridDips[1, 2]
+        p = gridDips[3, 2]
+        # calculate step size
+        step_r = dataDict["ROH"][2] - dataDict["ROH"][1]
+        # calculate dr
+        dr_comps[i] = (p - m) / (2 * step_r)
+    dr = np.linalg.norm(dr_comps)
+    return dr
 
+def calc_derivs(fd_hohs, fd_ohs, FDgrid, FDvalues):
+    from McUtils.Zachary import finite_difference
+    derivs = dict()
+    derivs["firstHOH"] = float(finite_difference(fd_hohs, FDvalues[2, :], 1, stencil=5, only_center=True))
+    derivs["firstOH"] = float(finite_difference(fd_ohs, FDvalues[:, 2], 1, stencil=5, only_center=True))
+    derivs["secondHOH"] = float(finite_difference(fd_hohs, FDvalues[2, :], 2, stencil=5, only_center=True))
+    derivs["secondOH"] = float(finite_difference(fd_ohs, FDvalues[:, 2], 2, stencil=5, only_center=True))
+    derivs["thirdHOH"] = float(finite_difference(fd_hohs, FDvalues[2, :], 3, stencil=5, only_center=True))
+    derivs["thirdOH"] = float(finite_difference(fd_ohs, FDvalues[:, 2], 3, stencil=5, only_center=True))
+    derivs["mixedOH_HOH"] = float(finite_difference(FDgrid, FDvalues, (1, 1), stencil=(5, 5),
+                                                    accuracy=0, only_center=True))
+    derivs["mixedOH_HOHHOH"] = float(finite_difference(FDgrid, FDvalues, (1, 2), stencil=(5, 5),
+                                                       accuracy=0, only_center=True))
+    derivs["mixedOHOH_HOH"] = float(finite_difference(FDgrid, FDvalues, (2, 1), stencil=(5, 5),
+                                                      accuracy=0, only_center=True))
+    return derivs
+
+def calc_allDerivs(dataDict):
+    data_name = dataDict["DataName"]
+    if os.path.exists(os.path.join(dataDict["MainDir"], f"{data_name}_25pt_FDrotdips_OHO.npy")):
+        dips = np.load(os.path.join(dataDict["MainDir"], f"{data_name}_25pt_FDrotdips_OHO.npy"))
+    else:
+        rot_coords, dips = rotate(dataDict)
+    fd_hohs = DD["HOH"]
+    fd_ohs = DD["ROH"]
+    FDgrid = np.array(np.meshgrid(fd_hohs, fd_ohs)).T
+    FDvaluesx = np.reshape(dips[:, 0], (5, 5))
+    FDvaluesy = np.reshape(dips[:, 1], (5, 5))
+    FDvaluesz = np.reshape(dips[:, 2], (5, 5))
+    xderivs = calc_derivs(fd_hohs, fd_ohs, FDgrid, FDvaluesx)
+    yderivs = calc_derivs(fd_hohs, fd_ohs, FDgrid, FDvaluesy)
+    zderivs = calc_derivs(fd_hohs, fd_ohs, FDgrid, FDvaluesz)
+    derivs = {'x': xderivs, 'y': yderivs, 'z': zderivs}
+    eqDipole = np.array((FDvaluesx[2, 2], FDvaluesy[2, 2], FDvaluesz[2, 2]))
+    data_name = dataDict["DataName"]
+    fn = os.path.join(dataDict["MainDir"], f"DipCoefs{data_name}.npz")
+    np.savez(fn, x=xderivs, y=yderivs, z=zderivs, eqDip=eqDipole)
+    return derivs
+
+
+
+if __name__ == '__main__':
+    DD = get_fchkData("w2")
+    # detder = calcDthetaDr(DD)
+    # print("dtdr :", detder)
+    der = calcDr(DD)
+    print("dr :", der)
+    calc_allDerivs(DD)
