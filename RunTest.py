@@ -3,6 +3,7 @@ from AnalyzeWaterCluster import AnalyzeOneWaterCluster
 from NormalModes import *
 from Figures import *
 from Rotator import get_xyz
+from run2DIntensityTests import TwoDHarmonicWfnDipoleExpansions
 
 # water4 = BuildTetCage(num_atoms=12, isotopologue="Hw4", FDBstep="0.5")
 # monomer = BuildMonomer()
@@ -19,10 +20,10 @@ from Rotator import get_xyz
 # dr2 = np.linalg.norm(analyzeObj.SBDipoleDerivs[1]) / np.linalg.norm(analyzeObj.StretchDipoleDerivs[1])
 # print("DerivRatio 1: ", dr1)
 # print("DerivRatio 2: ", dr2)
-se = Plots(DataSet="All")
+# se = Plots(DataSet="All")
 # se.make_OH_Sticks()
 # se .make_SB_sticks()
-se.plotSIvsSBI()
+# se.plotSIvsSBI()
 # se.plotSBfreqvsSBI()
 # se.plotSfreqvsSI()
 # se.plotBfreqvsBI()
@@ -35,5 +36,8 @@ se.plotSIvsSBI()
 # se.plotDerivRatiovsSBI()
 # se.plotDerivRatiovsVPT()
 
-
+tdmTypes = ["Dipole Surface", "Cubic", "Quadratic", "Quadratic Bilinear", "Linear"]
+for tdm in tdmTypes:
+    w1 = TwoDHarmonicWfnDipoleExpansions("w1", tdm)
+    print(w1.getting2DIntense())
 

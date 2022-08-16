@@ -59,7 +59,9 @@ def pull_data(logfile_pattern, ens_wave=True):
             parse = reader.parse(("ScanEnergies", "DipoleMoments", "StandardCartesianCoordinates"))
         dips.append(list(parse["DipoleMoments"]))
         raw_data = parse["ScanEnergies"][1]
-        if logpath[-5] is "a":
+        if logpath.find("Bend") > 0:
+            xyData.append(np.column_stack((np.repeat(0.9614, len(raw_data[:, 1])), raw_data[:, 1])))
+        elif logpath[-5] is "a":
             xyData.append(np.column_stack((raw_data[:, 1], np.repeat(64.1512, len(raw_data[:, 1])))))
         else:
             xyData.append(np.column_stack((raw_data[:, 1], raw_data[:, 2])))
@@ -72,8 +74,14 @@ def pull_data(logfile_pattern, ens_wave=True):
     if ens_wave:
         energy = Constants.convert((energy - min(energy)), "wavenumbers", to_AU=False)
     carts = np.concatenate(cats)
+    # remove odd angle points (to get back to 625 points)
+    evenIdx = np.argwhere(scoords[:, 1] % 2 < 1).squeeze()
+    dipoles = dipoles[evenIdx]
+    scoords = scoords[evenIdx]
+    energy = energy[evenIdx]
+    carts = carts[evenIdx]
     # make sure sorted & place in dictionary
-    idx = np.lexsort((scoords[:, 0], scoords[:, 1]))
+    idx = np.lexsort((scoords[:, 1], scoords[:, 0]))  # OH is slow moving coordinate, hoh is fast
     dataDict["Dipoles"] = dipoles[idx]
     dataDict["xyData"] = scoords[idx]
     dataDict["Energies"] = energy[idx]
@@ -108,15 +116,26 @@ def rotate(dataDict):
     else:
         rot_coords, rot_dips = inverter(r1_coords, r1_dips, inversion_atom)  # inversion of designated atom
     dipadedodas = rot_dips.reshape(len(all_coords), 3)
+    dipadedodas_au = Constants.convert(dipadedodas, "debye", to_AU=True)
     data_name = dataDict["DataName"]
-    np.save(os.path.join(dataDict["MainDir"], f"{data_name}_rotcoords_OHO.npy"),
+    np.save(os.path.join(dataDict["MainDir"], f"{data_name}_bigrotcoords_OHO.npy"),
             rot_coords)
-    np.save(os.path.join(dataDict["MainDir"], f"{data_name}_rotdips_OHO.npy"),
-            dipadedodas)
-    get_xyz(os.path.join(dataDict["MainDir"], f"{data_name}_rotcoords_OHO.xyz"),
+    np.save(os.path.join(dataDict["MainDir"], f"{data_name}_bigrotdips_OHO.npy"),
+            dipadedodas_au)
+    get_xyz(os.path.join(dataDict["MainDir"], f"{data_name}_bigrotcoords_OHO.xyz"),
             Constants.convert(rot_coords, "angstroms", to_AU=False), dataDict["AtomStr"])
     print("saved xyz")
-    return rot_coords, dipadedodas  # bohr & debye
+    return rot_coords, dipadedodas_au  # bohr & ATOMIC UNITS
+
+def save_DataDict(logfile_pattern):
+    dataDict1 = pull_data(logfile_pattern)
+    rot_coords, rot_dips = rotate(dataDict1)
+    dataDict1["RotatedCoords"] = rot_coords
+    dataDict1["RotatedDipoles"] = rot_dips
+    data_name = dataDict1["DataName"]
+    fn = os.path.join(dataDict1["MainDir"], f"{data_name}_bigDataDict.npz")
+    np.savez(fn, **dataDict1)
+    print(f"saved Data to {fn}")
 
 def plot_potential(dataDict):
     plt.rcParams.update({'font.size': 20})
@@ -217,12 +236,14 @@ def plot_dipoleswWFNS(dataDict):
             pass
 
 if __name__ == '__main__':
-    # logs = ["w2_ScanR4B.log", "w2_ScanR5B*.log", "w6_ScanR4B*.log", "w6_ScanR5B*.log", "w6a_ScanR4B*.log", "w6a_ScanR5B*.log", "w1_Scan*.log"]
-    logs = ["w2_ScanR5B*.log", "w6_ScanR5B*.log", "w6a_ScanR5B*.log", "w1_Scan*.log"]
-    for l in logs:
-        print(l)
-        Ddict = pull_data(l)
-        name = Ddict["DataName"]
-        # plot_potential(Ddict)
-        plot_dipoleswWFNS(Ddict)
+    # logs = ["w2_ScanR5B*.log", "w6_ScanR5B*.log", "w6a_ScanR5B*.log", "w1_Scan*.log"]
+    # for l in logs:
+    l = "w1_Scan*.log"
+    # save_DataDict(l)
+    # print(l)
+    Ddict = pull_data(l)
+    rotate(Ddict)
+    # plot_potential(Ddict)
+    # plot_dipoles(Ddict)
+    # plot_dipoleswWFNS(Ddict)
 

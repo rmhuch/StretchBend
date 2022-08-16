@@ -4,7 +4,7 @@ class Constants:
         "wavenumbers": 4.55634e-6,
         "angstroms": 1 / 0.529177,
         "amu": 1.000000000000000000 / 6.02213670000e23 / 9.10938970000e-28,
-        "debye": 1 / 0.393456
+        "debye": 0.393456
     }
 
     masses = {

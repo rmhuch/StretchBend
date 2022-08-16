@@ -19,7 +19,6 @@ def calcInternals(coords, wateridx):
     r12_array = np.array(r12)
     return np.round(HOH_array, 5), np.round(r12_array, 5)
 
-
 # locate and read in fchk files
 def get_fchkData(sys_string):
     from FChkInterpreter import FchkInterpreter
@@ -39,7 +38,6 @@ def get_fchkData(sys_string):
     dataDict = {"DataName": sys_string, "MainDir": mainDir, "HOH": np.unique(HOH), "ROH": np.unique(R12),
                 "Cartesians": carts, "Dipoles": dipoles}
     return dataDict
-
 
 # pull and rotate coordinates and dipoles
 def rotate(dataDict):
@@ -80,6 +78,14 @@ def rotate(dataDict):
     # print("saved xyz")
     return rot_coords, dipadedodas  # bohr & debye
 
+def save_DataDict(sys_string):
+    dataDict1 = get_fchkData(sys_string)
+    rot_coords, rot_dips = rotate(dataDict1)
+    dataDict1["RotatedCoords"] = rot_coords
+    dataDict1["RotatedDipoles"] = rot_dips
+    data_name = dataDict1["DataName"]
+    fn = os.path.join(dataDict1["MainDir"], f"{data_name}_smallDataDict.npy")
+    np.save(fn, dataDict1)
 
 def calcDthetaDr(dataDict):
     data_name = dataDict["DataName"]
@@ -133,11 +139,11 @@ def calc_derivs(fd_hohs, fd_ohs, FDgrid, FDvalues):
     derivs["secondOH"] = float(finite_difference(fd_ohs, FDvalues[:, 2], 2, stencil=5, only_center=True))
     derivs["thirdHOH"] = float(finite_difference(fd_hohs, FDvalues[2, :], 3, stencil=5, only_center=True))
     derivs["thirdOH"] = float(finite_difference(fd_ohs, FDvalues[:, 2], 3, stencil=5, only_center=True))
-    derivs["mixedOH_HOH"] = float(finite_difference(FDgrid, FDvalues, (1, 1), stencil=(5, 5),
+    derivs["mixedHOH_OH"] = float(finite_difference(FDgrid, FDvalues, (1, 1), stencil=(5, 5),
                                                     accuracy=0, only_center=True))
-    derivs["mixedOH_HOHHOH"] = float(finite_difference(FDgrid, FDvalues, (1, 2), stencil=(5, 5),
+    derivs["mixedHOH_OHOH"] = float(finite_difference(FDgrid, FDvalues, (1, 2), stencil=(5, 5),
                                                        accuracy=0, only_center=True))
-    derivs["mixedOHOH_HOH"] = float(finite_difference(FDgrid, FDvalues, (2, 1), stencil=(5, 5),
+    derivs["mixedHOHHOH_OH"] = float(finite_difference(FDgrid, FDvalues, (2, 1), stencil=(5, 5),
                                                       accuracy=0, only_center=True))
     return derivs
 
@@ -147,9 +153,9 @@ def calc_allDerivs(dataDict):
         dips = np.load(os.path.join(dataDict["MainDir"], f"{data_name}_25pt_FDrotdips_OHO.npy"))
     else:
         rot_coords, dips = rotate(dataDict)
-    fd_hohs = DD["HOH"]
-    fd_ohs = DD["ROH"]
-    FDgrid = np.array(np.meshgrid(fd_hohs, fd_ohs)).T
+    fd_hohs = dataDict["HOH"]
+    fd_ohs = dataDict["ROH"]
+    FDgrid = np.array(np.meshgrid(fd_ohs, fd_hohs)).T
     FDvaluesx = np.reshape(dips[:, 0], (5, 5))
     FDvaluesy = np.reshape(dips[:, 1], (5, 5))
     FDvaluesz = np.reshape(dips[:, 2], (5, 5))
@@ -159,16 +165,28 @@ def calc_allDerivs(dataDict):
     derivs = {'x': xderivs, 'y': yderivs, 'z': zderivs}
     eqDipole = np.array((FDvaluesx[2, 2], FDvaluesy[2, 2], FDvaluesz[2, 2]))
     data_name = dataDict["DataName"]
-    fn = os.path.join(dataDict["MainDir"], f"DipCoefs{data_name}.npz")
+    fn = os.path.join(dataDict["MainDir"], f"{data_name}_DipCoefs.npz")
     np.savez(fn, x=xderivs, y=yderivs, z=zderivs, eqDip=eqDipole)
     return derivs
 
+def calc_allNorms(dataDict):
+    data_name = dataDict["DataName"]
+    if os.path.exists(os.path.join(dataDict["MainDir"], f"{data_name}_DipCoefs.npz")):
+        loadderivs = np.load(os.path.join(dataDict["MainDir"], f"{data_name}_DipCoefs.npz"), allow_pickle=True)
+        derivs = {k: loadderivs[k].item() for k in ["x", "y", "z"]}
+    else:
+        derivs = calc_allDerivs(dataDict)
+    norms = dict()
+    for key in derivs["x"]:
+        norms[key] = np.linalg.norm((derivs["x"][key], derivs["y"][key], derivs["z"][key]))
+    fn = os.path.join(dataDict["MainDir"], f"{data_name}_DipNorms")
+    np.save(fn, norms)
+    return norms
 
 
 if __name__ == '__main__':
-    DD = get_fchkData("w2")
-    # detder = calcDthetaDr(DD)
-    # print("dtdr :", detder)
-    der = calcDr(DD)
-    print("dr :", der)
-    calc_allDerivs(DD)
+    for i in ["w1", "w2", "w6", "w6a"]:
+        # save_DataDict(i)
+        data = get_fchkData(i)
+        calc_allDerivs(data)
+        calc_allNorms(data)
