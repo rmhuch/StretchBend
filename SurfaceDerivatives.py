@@ -1,9 +1,7 @@
 import os
 import glob
 from Converter import Constants
-from McUtils.Zachary import finite_difference
 from Rotator import *
-
 
 # helper function to calculate internal coords
 def calcInternals(coords, wateridx):
@@ -27,7 +25,7 @@ def get_fchkData(sys_string):
     fchk_files = glob.glob(os.path.join(mainDir, f"{sys_string}_FD*.fchk"))
     allDat = FchkInterpreter(*fchk_files)
     carts = allDat.cartesians
-    # ens = allDat.MP2Energy
+    ens = allDat.MP2Energy
     # print(Constants.convert(ens - min(ens), "wavenumbers", to_AU=False))
     if sys_string == "w1":
         wateridx = [0, 1, 2]
@@ -36,7 +34,7 @@ def get_fchkData(sys_string):
     HOH, R12 = calcInternals(carts, wateridx)
     dipoles = allDat.Dipoles
     dataDict = {"DataName": sys_string, "MainDir": mainDir, "HOH": np.unique(HOH), "ROH": np.unique(R12),
-                "Cartesians": carts, "Dipoles": dipoles}
+                "Cartesians": carts, "Dipoles": dipoles, "Energies": ens}
     return dataDict
 
 # pull and rotate coordinates and dipoles
@@ -68,15 +66,30 @@ def rotate(dataDict):
     else:
         rot_coords, rot_dips = inverter(r1_coords, r1_dips, inversion_atom)  # inversion of designated atom
     dipadedodas = rot_dips.reshape(len(all_coords), 3)
-    data_name = dataDict["DataName"] + "_25pt"
-    np.save(os.path.join(dataDict["MainDir"], f"{data_name}_FDrotcoords_OHO.npy"),
-            rot_coords)
-    np.save(os.path.join(dataDict["MainDir"], f"{data_name}_FDrotdips_OHO.npy"),
-            dipadedodas)
+    # data_name = dataDict["DataName"] + "_25pt"
+    # np.save(os.path.join(dataDict["MainDir"], f"{data_name}_FDrotcoords_OHO.npy"),
+    #         rot_coords)
+    # np.save(os.path.join(dataDict["MainDir"], f"{data_name}_FDrotdips_OHO.npy"),
+    #         dipadedodas)
     # get_xyz(os.path.join(dataDict["MainDir"], f"{data_name}_FDrotcoords_OHO.xyz"),
     #         Constants.convert(rot_coords, "angstroms", to_AU=False), dataDict["AtomStr"])
     # print("saved xyz")
     return rot_coords, dipadedodas  # bohr & debye
+
+def spiny_spin(dataDict):
+    from Eckart_turny_turn import EckartsSpinz
+    from PAF_spinz import MomentOfSpinz
+    massarray = np.array([Constants.mass(x) for x in ["O", "H", "H"]])
+    eq_idx = np.argmin(dataDict["Energies"])
+    PAobj = MomentOfSpinz(dataDict["Cartesians"][eq_idx], massarray)  # rotate eq to Principle Axis Frame
+    ref = PAobj.RotCoords
+    planar_flag = True
+    EckObjCarts = EckartsSpinz(ref, dataDict["Cartesians"], massarray, planar=planar_flag)
+    RotCoords = EckObjCarts.RotCoords  # rotate all FD steps to eq ref (PAF)
+    RotDips = np.zeros_like(dataDict["Dipoles"])
+    for i, dip in enumerate(dataDict["Dipoles"]):
+        RotDips[i, :] = dip@EckObjCarts.TransformMat[i]  # use transformation matrix from cartesians for dipoles
+    return RotCoords, RotDips
 
 def save_DataDict(sys_string):
     dataDict1 = get_fchkData(sys_string)
@@ -84,13 +97,14 @@ def save_DataDict(sys_string):
     dataDict1["RotatedCoords"] = rot_coords
     dataDict1["RotatedDipoles"] = rot_dips
     data_name = dataDict1["DataName"]
-    fn = os.path.join(dataDict1["MainDir"], f"{data_name}_smallDataDict.npy")
-    np.save(fn, dataDict1)
+    fn = os.path.join(dataDict1["MainDir"], f"{data_name}_smallDataDict.npz")
+    np.savez(fn, **dataDict1)
 
 def calcDthetaDr(dataDict):
     data_name = dataDict["DataName"]
-    if os.path.exists(os.path.join(dataDict["MainDir"], f"{data_name}_25pt_FDrotdips_OHO.npy")):
-        dips = np.load(os.path.join(dataDict["MainDir"], f"{data_name}_25pt_FDrotdips_OHO.npy"))
+    if os.path.exists(os.path.join(dataDict["MainDir"], f"{data_name}_smallDataDict.npz")):
+        alldat = np.load(os.path.join(dataDict["MainDir"], f"{data_name}_smallDataDict.npz"), allow_pickle=True)
+        dips = alldat["RotatedDipoles"]
     else:
         rot_coords, dips = rotate(dataDict)
     # calculate each dtheta dr by simple 4pt FD
@@ -112,8 +126,9 @@ def calcDthetaDr(dataDict):
 
 def calcDr(dataDict):
     data_name = dataDict["DataName"]
-    if os.path.exists(os.path.join(dataDict["MainDir"], f"{data_name}_25pt_FDrotdips_OHO.npy")):
-        dips = np.load(os.path.join(dataDict["MainDir"], f"{data_name}_25pt_FDrotdips_OHO.npy"))
+    if os.path.exists(os.path.join(dataDict["MainDir"], f"{data_name}_smallDataDict.npz")):
+        alldat = np.load(os.path.join(dataDict["MainDir"], f"{data_name}_smallDataDict.npz"), allow_pickle=True)
+        dips = alldat["RotatedDipoles"]
     else:
         rot_coords, dips = rotate(dataDict)
     # calculate each dtheta dr by 3pt FD @ eq theta
@@ -144,13 +159,14 @@ def calc_derivs(fd_hohs, fd_ohs, FDgrid, FDvalues):
     derivs["mixedHOH_OHOH"] = float(finite_difference(FDgrid, FDvalues, (1, 2), stencil=(5, 5),
                                                        accuracy=0, only_center=True))
     derivs["mixedHOHHOH_OH"] = float(finite_difference(FDgrid, FDvalues, (2, 1), stencil=(5, 5),
-                                                      accuracy=0, only_center=True))
+                                                       accuracy=0, only_center=True))
     return derivs
 
 def calc_allDerivs(dataDict):
     data_name = dataDict["DataName"]
-    if os.path.exists(os.path.join(dataDict["MainDir"], f"{data_name}_25pt_FDrotdips_OHO.npy")):
-        dips = np.load(os.path.join(dataDict["MainDir"], f"{data_name}_25pt_FDrotdips_OHO.npy"))
+    if os.path.exists(os.path.join(dataDict["MainDir"], f"{data_name}_smallDataDictPA.npz")):
+        alldat = np.load(os.path.join(dataDict["MainDir"], f"{data_name}_smallDataDictPA.npz"), allow_pickle=True)
+        dips = alldat["RotatedDipoles"]
     else:
         rot_coords, dips = rotate(dataDict)
     fd_hohs = dataDict["HOH"]
@@ -185,8 +201,9 @@ def calc_allNorms(dataDict):
 
 
 if __name__ == '__main__':
-    for i in ["w1", "w2", "w6", "w6a"]:
-        # save_DataDict(i)
+    for i in ["w1"]:  # , "w2", "w6", "w6a"]:
+        save_DataDict(i)
         data = get_fchkData(i)
         calc_allDerivs(data)
-        calc_allNorms(data)
+        a = calc_allNorms(data)
+        print(a)

@@ -39,5 +39,5 @@ from run2DIntensityTests import TwoDHarmonicWfnDipoleExpansions
 tdmTypes = ["Dipole Surface", "Cubic", "Quadratic", "Quadratic Bilinear", "Linear"]
 for tdm in tdmTypes:
     w1 = TwoDHarmonicWfnDipoleExpansions("w1", tdm)
-    print(w1.getting2DIntense())
+    w1.getting2DIntense()
 

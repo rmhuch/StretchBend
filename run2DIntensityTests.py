@@ -8,7 +8,7 @@ class TwoDHarmonicWfnDipoleExpansions:
         self.TDMtype = TDMtype
         self._MainDir = None
         self._FDdat = None
-        self._SurfaceScanRes = None
+        self._Surfacedat = None
         self._DVRdat = None
         self._wfns = None
         self._dipSurf = None
@@ -24,31 +24,33 @@ class TwoDHarmonicWfnDipoleExpansions:
     @property
     def FDdat(self):
         if self._FDdat is None:
-            dat = np.load(os.path.join(self.MainDir, f"{self.sys_str}_smallDataDict.npy"), allow_pickle=True)
-            self._FDdat = dat.item()
+            self._FDdat = np.load(os.path.join(self.MainDir, f"{self.sys_str}_smallDataDictPA.npz"), allow_pickle=True)
         return self._FDdat
 
     @property
-    def SurfaceScanRes(self):
-        if self._SurfaceScanRes is None:
+    def Surfacedat(self):
+        if self._Surfacedat is None:
             if self.sys_str == "w1":
-                self._SurfaceScanRes = np.load(os.path.join(self.MainDir, f"{self.sys_str}_RB_GaussRes.npz"),
+                self._Surfacedat = np.load(os.path.join(self.MainDir, f"{self.sys_str}_RB_bigDataDictPA.npz"),
                                                allow_pickle=True)
             else:
-                self._SurfaceScanRes = np.load(os.path.join(self.MainDir, f"{self.sys_str}_R5B_GaussRes.npz"),
+                self._Surfacedat = np.load(os.path.join(self.MainDir, f"{self.sys_str}_R5B_bigDataDict.npz"),
                                                allow_pickle=True)
-        return self._SurfaceScanRes
+            # Full surface Gaussian Output: AtomStr, xyData, Energies, ROTATED cartesians and dipoles
+            # (from SurfacePlots.py - log) <- converted to a.u.
+        return self._Surfacedat
 
     @property
     def DVRdat(self):
         if self._DVRdat is None:
-            # energies in wavenumbers grid in bohr/radian
+            # energies in wavenumbers grid in bohr/radian (from 2Dwfns.py)
             if self.sys_str == "w1":
-                self._DVRdat = np.load(os.path.join(self.MainDir, f"{self.sys_str}_RB_2D_DVR_bigGrid.npz"),
+                self._DVRdat = np.load(os.path.join(self.MainDir, f"{self.sys_str}_RB_2D_DVRPA.npz"),
                                                allow_pickle=True)
             else:
                 self._DVRdat = np.load(os.path.join(self.MainDir, f"{self.sys_str}_R5B_2D_DVR.npz"),
                                                allow_pickle=True)
+
         return self._DVRdat
 
     @property
@@ -56,17 +58,6 @@ class TwoDHarmonicWfnDipoleExpansions:
         if self._wfns is None:
             self._wfns = self.DVRdat["wfns_array"]
         return self._wfns
-
-    @property
-    def dipSurf(self):
-        if self._dipSurf is None:
-            if self.sys_str == "w1":
-                self._dipSurf = np.load(os.path.join(self.MainDir, f"{self.sys_str}_RB_bigrotdips_OHO.npy"),
-                                               allow_pickle=True)
-            else:
-                self._dipSurf = np.load(os.path.join(self.MainDir, f"{self.sys_str}_R5B_rotdips_OHO.npy"),
-                                               allow_pickle=True)
-        return self._dipSurf
 
     @property
     def tdms(self):
@@ -81,17 +72,16 @@ class TwoDHarmonicWfnDipoleExpansions:
         bigGrid = self.DVRdat["grid"][0]
         npts = reduce(mul, bigGrid.shape[:-1], 1)
         Grid = np.reshape(bigGrid, (npts, bigGrid.shape[-1]))
-        # Grid = self.DVRdat["grid"].reshape((961, 2))  # grid for whole scan / in bohr/radians
         params = dict()
         derivs = np.load(os.path.join(self.MainDir, f"{self.sys_str}_DipCoefs.npz"), allow_pickle=True)
         newDerivs = {k: derivs[k].item() for k in ["x", "y", "z"]}
         params["eqDipole"] = derivs["eqDip"]  # place in EQ Dipole from the small scan
         fd_ohs = self.FDdat["ROH"]
         fd_hohs = self.FDdat["HOH"]
-        params["delta_oh"] = Grid[:, 0] - fd_ohs[2]
-        params["delta_hoh"] = Grid[:, 1] - fd_hohs[2]
+        params["delta_oh"] = np.round(Grid[:, 0] - fd_ohs[2], 3)
+        params["delta_hoh"] = np.round(Grid[:, 1] - fd_hohs[2], 3)
         twodeedms = dict()
-        twodeedms["dipSurf"] = self.dipSurf
+        twodeedms["dipSurf"] = self.Surfacedat["RotatedDipoles"]
         twodeedms["cubic"] = TM2Dexpansion.cubic_DM(params, newDerivs)
         twodeedms["quad"] = TM2Dexpansion.quad_DM(params, newDerivs)
         twodeedms["quadOH"] = TM2Dexpansion.quadOH_DM(params, newDerivs)
@@ -115,17 +105,20 @@ class TwoDHarmonicWfnDipoleExpansions:
         else:
             raise Exception("Can't determine TDM type.")
         # use identified transition moment to calculate the intensities
+        print(self.TDMtype)
         intensities = np.zeros(len(self.wfns[0, :]) - 1)
         matEl = np.zeros(3)
         comp_intents = np.zeros(3)
+        # HOH, 2 HOH, OH, 3 HOH, SB
+        # freq = [1572.701, 3117.353, 3744.751, 4690.054, 5294.391]
         for i in np.arange(1, len(self.wfns[0, :])):  # starts at 1 to only loop over exciting states
             print("excited state: ", i)
             freq = self.DVRdat["energy_array"][i] - self.DVRdat["energy_array"][0]
             print(freq)
             for j in np.arange(3):
-                super_es = trans_mom[:, j] * self.wfns[:, i]
-                matEl[j] = np.dot(self.wfns[:, 0], super_es) ** 2
-                comp_intents[j] = matEl[j] * freq * 2.506 / (0.393456 ** 2)
-            intensities[i-1] = np.sum(comp_intents)
+                matEl[j] = np.dot(self.wfns[:, 0], (trans_mom[:, j] * self.wfns[:, i]))
+                comp_intents[j] = (matEl[j]) ** 2
+            intensities[i-1] = np.sum(comp_intents) * freq * 2.506 / (0.393456 ** 2)
+            print(intensities[i-1])
         return intensities
 

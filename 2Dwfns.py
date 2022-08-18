@@ -15,7 +15,7 @@ def calc_EQgeom(dataDict):
     r23 = np.linalg.norm(vec23)
     ang = (np.dot(vec12, vec23)) / (r12 * r23)  # angstroms
     HOH = (np.arccos(ang))  # radians
-    return Constants.convert(r12, "angstroms", to_AU=True), Constants.convert(r23, "angstroms", to_AU=True), HOH
+    return r12, r23, HOH
 
 
 def potlint(x=None, y=None):
@@ -85,39 +85,25 @@ def make_one_Wfn_plot(ResDict, wfnn, idx=(0, 1)):
 
 def run_2DDVR(dataDict):
     """Runs 2D DVR over the original 2D potential"""
-    from scipy import interpolate
     dvr_2D = DVR("ColbertMillerND")
-    name = str(dataDict["DataName"])
-    npz_filename = os.path.join(str(dataDict["MainDir"]), f"{name}_2D_DVR_bigGrid.npz")
-    x = Constants.convert(dataDict["xyData"][:, 0], "angstroms", to_AU=True)
-    y = (dataDict["xyData"][:, 1]*2) * (np.pi/180)
-    xy = np.column_stack((x, y))  # xy in bohr/radians
+    fname = str(dataDict["DataName"])
+    npz_filename = os.path.join(str(dataDict["MainDir"]), f"{fname}_2D_DVRPA.npz")
     mO = Constants.mass("O", to_AU=True)
     mH = Constants.mass("H", to_AU=True)
     muOH = 1/(1/mO + 1/mH)
     r12, r23, HOH = calc_EQgeom(dataDict)
     muHOH = GmatrixStretchBend.calc_Gphiphi(m1=mH, m2=mO, m3=mH,
                                             r12=r12, r23=r23, phi123=HOH)
-    pot = Constants.convert(dataDict["Energies"], "wavenumbers", to_AU=True)
-    # uX = np.unique(x)
-    # uY = np.unique(y)
-    # fit_pot = interpolate.interp2d(uX, uY, np.reshape(pot, (len(uX), len(uY))), kind="cubic",
-    #                                fill_value=Constants.convert(12000, "wavenumbers", to_AU=True))
-    # newx = np.linspace(r12-Constants.convert(0.35, "angstroms", to_AU=True),
-    #                    r12+Constants.convert(0.65, "angstroms", to_AU=True), 41)
-    # newy = np.linspace(HOH-(44*(np.pi/180)), HOH+(44*(np.pi/180)), 41)
-    # nX, nY = np.meshgrid(newx, newy)
-    # xy = np.column_stack((nX.flatten(), nY.flatten()))
-    # extra_pot = fit_pot(newx, newy).flatten()
-    res = dvr_2D.run(potential_grid=np.column_stack((xy, pot)),
+    res = dvr_2D.run(potential_grid=np.column_stack((dataDict["xyData"], dataDict["Energies"])),
                      divs=(31, 31), mass=[muOH, (1/muHOH)], num_wfns=6,
-                     domain=((min(xy[:, 0]),  max(xy[:, 0])), (min(xy[:, 1]), max(xy[:, 1]))),
+                     domain=((min(dataDict["xyData"][:, 0]),  max(dataDict["xyData"][:, 0])),
+                             (min(dataDict["xyData"][:, 1]), max(dataDict["xyData"][:, 1]))),
                      results_class=ResultsInterpreter)
     dvr_grid = res.grid
     dvr_pot = Constants.convert(res.potential_energy.diagonal(), "wavenumbers", to_AU=False)
     ens = Constants.convert(res.wavefunctions.energies, "wavenumbers", to_AU=False)
     print(ens - ens[0])
-    res.plot_potential(plot_class=ContourPlot, plot_units="wavenumbers", colorbar=True).show()
+    # res.plot_potential(plot_class=ContourPlot, plot_units="wavenumbers", colorbar=True).show()
     wfns = res.wavefunctions.wavefunctions
     ResultsInterpreter.wfn_contours(res)
     np.savez(npz_filename, grid=[dvr_grid], potential=[dvr_pot], energy_array=ens, wfns_array=wfns)
@@ -130,7 +116,6 @@ if __name__ == '__main__':
     # logs = ["w2_R5B", "w6_R5B", "w6a_R5B"]
     # for name in logs:
     name = "w1_RB"
-    # dat = np.load(os.path.join(MainDir, f"{name}_GaussRes.npz"), allow_pickle=True)
-    dat = np.load(os.path.join(MainDir, f"{name}_bigDataDict.npz"), allow_pickle=True)
+    dat = np.load(os.path.join(MainDir, f"{name}_bigDataDictPA.npz"), allow_pickle=True)
     a = run_2DDVR(dat)
     # make_one_Wfn_plot(a, a.wavefunctions.wavefunctions)
