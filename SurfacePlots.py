@@ -54,10 +54,11 @@ def pull_data(logfile_pattern):
     xyData = []
     ens = []
     cats = []
+    allCharges = []
     logfiless = glob.glob(os.path.join(MainDir, logfile_pattern))
     for logpath in logfiless:
         with GaussianLogReader(logpath) as reader:
-            parse = reader.parse(("ScanEnergies", "DipoleMoments", "StandardCartesianCoordinates"))
+            parse = reader.parse(("ScanEnergies", "DipoleMoments", "StandardCartesianCoordinates", "MullikenCharges"))
         dips.append(list(parse["DipoleMoments"]))
         raw_data = parse["ScanEnergies"][1]
         if logpath.find("Bend") > 0:
@@ -68,12 +69,19 @@ def pull_data(logfile_pattern):
             xyData.append(np.column_stack((raw_data[:, 1], raw_data[:, 2])))
         ens.append(raw_data[:, -1])  # returns MP2 energy
         cats.append(parse["StandardCartesianCoordinates"][1])
+        Mcharges = (parse["MullikenCharges"])
+        dat = []
+        for i in Mcharges:
+            pt = i.split()
+            dat.append([float(pt[-7]), float(pt[-4]), float(pt[-1])])
+        allCharges.append(dat)
     # concatenate lists
     dipoles = np.concatenate(dips)
     scoords = np.concatenate(xyData)
     energy = np.concatenate(ens)
     energy = energy - min(energy)
     carts = np.concatenate(cats)
+    MullCharges = np.concatenate(allCharges)
     # remove odd angle points & convert to AU
     evenIdx = np.argwhere(scoords[:, 1] % 2 < 1).squeeze()
     dipoles = Constants.convert(dipoles[evenIdx], "debye", to_AU=True)
@@ -89,6 +97,7 @@ def pull_data(logfile_pattern):
     dataDict["xyData"] = scoords_au[idx]
     dataDict["Energies"] = energy[idx]
     dataDict["Cartesians"] = carts[idx]
+    dataDict["MullikenCharges"] = MullCharges[idx]
     return dataDict
 
 def rotate(dataDict):

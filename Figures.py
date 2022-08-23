@@ -411,7 +411,7 @@ class Plots:
         plt.savefig(os.path.join(self.FigDir, f"OOvsBI_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotSBfreqvsSBI(self):
-        plt.rcParams.update({'font.size': 20})
+        plt.rcParams.update({'font.size': 25})
         legend_markers = []
         legend_colors = []
         fig = plt.figure(figsize=(12, 8), dpi=216)
@@ -441,10 +441,10 @@ class Plots:
                                         label=HOHtype))
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, f"SBFreqvsSBI_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"SBFreqvsSBI_{self.DataSet}_bigfont.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotSfreqvsSI(self):
-        plt.rcParams.update({'font.size': 20})
+        plt.rcParams.update({'font.size': 25})
         legend_markers = []
         legend_colors = []
         fig = plt.figure(figsize=(12, 8), dpi=216)
@@ -475,7 +475,7 @@ class Plots:
 
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, f"SFreqvsSI_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"SFreqvsSI_{self.DataSet}_bigfont.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotBfreqvsBI(self):
         plt.rcParams.update({'font.size': 20})

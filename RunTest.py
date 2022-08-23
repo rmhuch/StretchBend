@@ -20,7 +20,7 @@ from run2DIntensityTests import TwoDHarmonicWfnDipoleExpansions
 # dr2 = np.linalg.norm(analyzeObj.SBDipoleDerivs[1]) / np.linalg.norm(analyzeObj.StretchDipoleDerivs[1])
 # print("DerivRatio 1: ", dr1)
 # print("DerivRatio 2: ", dr2)
-# se = Plots(DataSet="All")
+# se = Plots(DataSet="Neutral")
 # se.make_OH_Sticks()
 # se .make_SB_sticks()
 # se.plotSIvsSBI()
