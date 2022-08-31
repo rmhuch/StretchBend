@@ -1,5 +1,5 @@
 import numpy as np
-
+# TODO: read through and work through code, make sure w1, w2, and w6 rotate how we expect
 def rot1(coords, dips, xAxis_atom=None):
     if xAxis_atom is None:
         raise Exception("No x-axis atom defined")
@@ -94,4 +94,33 @@ def get_xyz(filename, coords, atom_str):
                             (atom_str[j], coords[i, j, 0], coords[i, j, 1], coords[i, j, 2]))
                 f.write("\n")
 
+def rotate(dataDict):
+    if dataDict["DataName"].find("w1") == 0:
+        centralO_atom = 0
+        xAxis_atom = 1
+        xyPlane_atom = 2
+        inversion_atom = None
+    else:
+        centralO_atom = 3  # Donor Oxygen
+        xAxis_atom = 0  # Acceptor Oxygen
+        inversion_atom = 5  # Shared Proton
+        xyPlane_atom = None
+    all_coords = dataDict["Cartesians"]
+    all_dips = dataDict["Dipoles"].reshape((len(all_coords), 1, 3))
+    # shift to origin
+    o_coords = all_coords - all_coords[:, np.newaxis, centralO_atom]
+    o_dips = all_dips - all_coords[:, np.newaxis, centralO_atom]
+    # rotation to x-axis
+    r1_coords, r1_dips = rot1(o_coords, o_dips, xAxis_atom)
+    if dataDict["DataName"].find("w2") == 0:
+        # for dimer, rotated atom is planar so "inverter" makes entire z-axis 0..
+        rot_coords = r1_coords
+        rot_dips = r1_dips
+    elif dataDict["DataName"].find("w1") == 0:
+        # for monomer, rotate the third H to the xy-plane
+        rot_coords, rot_dips = rot2(r1_coords, r1_dips, xyPlane_atom, outerO1=0, outerO2=1)
+    else:
+        rot_coords, rot_dips = inverter(r1_coords, r1_dips, inversion_atom)  # inversion of designated atom
+    dipadedodas = rot_dips.reshape(len(all_coords), 3)
+    return rot_coords, dipadedodas  # bohr & ATOMIC UNITS
 

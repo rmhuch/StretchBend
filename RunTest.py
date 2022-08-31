@@ -4,14 +4,18 @@ from NormalModes import *
 from Figures import *
 from Rotator import get_xyz
 from run2DIntensityTests import TwoDHarmonicWfnDipoleExpansions
+from BuildIntensityClusters import *
+from AnalyzeIntensityClusters import *
 
 # water4 = BuildTetCage(num_atoms=12, isotopologue="Hw4", FDBstep="0.5")
-# monomer = BuildMonomer()
+monomer = BuildMonomer()
+print(monomer.FDBdat["RotDipoles"])
 # dimer = BuildDimer(num_atoms=6, isotopologue="Hw1", FDBstep="0.5")
 # water31 = BuildTetThreeOne(num_atoms=12, isotopologue="Hw4", FDBstep="0.5")
 # water6 = BuildHexCage(num_atoms=18, isotopologue="allH", FDBstep="0.5")
 # water5pls = BuildHexT1(num_atoms=19, isotopologue="Hw5", FDBstep="0.5")
-# analyzeObj = AnalyzeOneWaterCluster(ClusterObj=water5pls)
+# analyzeObj = AnalyzeOneWaterCluster(ClusterObj=monomer)
+
 # print("Bend Freq: ", Constants.convert(analyzeObj.FDFrequency, "wavenumbers", to_AU=False))
 # print("Bend: ", analyzeObj.FDIntensity)
 # print("Stretch: ", analyzeObj.calc_StretchIntensity())
@@ -35,9 +39,13 @@ from run2DIntensityTests import TwoDHarmonicWfnDipoleExpansions
 # se.plotVPTvsSBI_AVG()
 # se.plotDerivRatiovsSBI()
 # se.plotDerivRatiovsVPT()
+#
+# tdmTypes = ["Dipole Surface", "Cubic", "Quadratic", "Quadratic Bilinear", "Linear"]
+# for tdm in tdmTypes:
+#     w1 = TwoDHarmonicWfnDipoleExpansions("w1", tdm)
+#     w1.getting2DIntense()
 
-tdmTypes = ["Dipole Surface", "Cubic", "Quadratic", "Quadratic Bilinear", "Linear"]
-for tdm in tdmTypes:
-    w1 = TwoDHarmonicWfnDipoleExpansions("w1", tdm)
-    w1.getting2DIntense()
+w1 = BuildW1(isotopologue="rigid")
+analyzeObj = AnalyzeIntensityCluster(w1)
+print(analyzeObj.ClusterObj.SmallScanDataDict["RotatedDipoles"])
 

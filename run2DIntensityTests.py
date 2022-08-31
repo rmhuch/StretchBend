@@ -24,14 +24,14 @@ class TwoDHarmonicWfnDipoleExpansions:
     @property
     def FDdat(self):
         if self._FDdat is None:
-            self._FDdat = np.load(os.path.join(self.MainDir, f"{self.sys_str}_smallDataDictPA.npz"), allow_pickle=True)
+            self._FDdat = np.load(os.path.join(self.MainDir, "w1", f"{self.sys_str}_smallDataDict.npz"), allow_pickle=True)
         return self._FDdat
 
     @property
     def Surfacedat(self):
         if self._Surfacedat is None:
             if self.sys_str == "w1":
-                self._Surfacedat = np.load(os.path.join(self.MainDir, f"{self.sys_str}_RB_bigDataDictPA.npz"),
+                self._Surfacedat = np.load(os.path.join(self.MainDir, "w1", f"{self.sys_str}_bigDataDict.npz"),
                                                allow_pickle=True)
             else:
                 self._Surfacedat = np.load(os.path.join(self.MainDir, f"{self.sys_str}_R5B_bigDataDict.npz"),
@@ -43,9 +43,9 @@ class TwoDHarmonicWfnDipoleExpansions:
     @property
     def DVRdat(self):
         if self._DVRdat is None:
-            # energies in wavenumbers grid in bohr/radian (from 2Dwfns.py)
+            # energies in wavenumbers grid in bohr/radian (from TwoDwfns.py)
             if self.sys_str == "w1":
-                self._DVRdat = np.load(os.path.join(self.MainDir, f"{self.sys_str}_RB_2D_DVRPA.npz"),
+                self._DVRdat = np.load(os.path.join(self.MainDir, "w1", f"{self.sys_str}_2D_DVR.npz"),
                                                allow_pickle=True)
             else:
                 self._DVRdat = np.load(os.path.join(self.MainDir, f"{self.sys_str}_R5B_2D_DVR.npz"),
@@ -73,7 +73,7 @@ class TwoDHarmonicWfnDipoleExpansions:
         npts = reduce(mul, bigGrid.shape[:-1], 1)
         Grid = np.reshape(bigGrid, (npts, bigGrid.shape[-1]))
         params = dict()
-        derivs = np.load(os.path.join(self.MainDir, f"{self.sys_str}_DipCoefs.npz"), allow_pickle=True)
+        derivs = np.load(os.path.join(self.MainDir, "w1", f"{self.sys_str}_DipCoefs.npz"), allow_pickle=True)
         newDerivs = {k: derivs[k].item() for k in ["x", "y", "z"]}
         params["eqDipole"] = derivs["eqDip"]  # place in EQ Dipole from the small scan
         fd_ohs = self.FDdat["ROH"]
