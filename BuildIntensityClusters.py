@@ -27,11 +27,12 @@ class BuildIntensityCluster:
             self._MainFigDir = os.path.join(self.MainDir, "Figures")
         return self._MainFigDir
 
-    def parse_logData(self, cluster_dir, sys_str, water_idx=None):
+    def parse_logData(self, cluster_dir, sys_str, water_idx=None, scan_coords=None):
         """ takes a list of log files and returns a dictionary filled with Gaussian data from the logfiles
             :param cluster_dir, the directory for the exact cluster we are parsing the data for
             :param sys_str, system identifying tag
             :param water_idx, the index of the scanned water, only necessary when optimized scan
+            :param scan_coords, tuple of strings of coordinate names in optimized scan, keep None if rigid
             :returns dictionary ('Dipoles' - dipoles from Gaussian (later rotated),
                                  'xyData' - values of the scanned coordinates, 'Energies' - Gaussian energies,
                                  'Cartesians' -  Coordinates at every scan point,
@@ -55,20 +56,21 @@ class BuildIntensityCluster:
                                           "StandardCartesianCoordinates", "MullikenCharges"))
                 raw_data = parse["OptimizedScanEnergies"]  # format energies
                 ens.append(raw_data[0])  # returns MP2 energy
-                xyData.append(np.column_stack((raw_data[1]["R1"], raw_data[1]["A1"])))
+                xyData.append(np.column_stack((raw_data[1][scan_coords[0]], raw_data[1][scan_coords[1]])))
                 dips.append(list(parse["OptimizedDipoleMoments"]))  # format dipoles
                 ccs = parse["StandardCartesianCoordinates"][1]
                 # since the cartesian coordinates and Mulliken charges return every step not every optimized step,
                 # we have to trim the data...
-                x_vals, y_vals = self.calc_scoords(ccs, water_idx)  # format cartesians
-                coords = zip(x_vals, y_vals, ccs)
+                x_vals, y_vals = self.calc_scoords(ccs, water_idx)  # format cartesians - x in angstroms, y in radians
+                y_deg = np.round(y_vals * (180 / np.pi), 4)
+                coords = zip(x_vals, y_deg, ccs)  # TRIPLE CHECK THIS
                 cart_struct.update((((x, y), cc) for x, y, cc in coords))
                 cats.append(list(cart_struct.values()))
                 Mcharges = (parse["MullikenCharges"])  # format Mulliken Charges
                 Cdat = []
                 for i in Mcharges:
                     pt = i.split()
-                    Cdat.append([float(pt[-7]), float(pt[-4]), float(pt[-1])])
+                    Cdat.append([float(pt[k]) for k in np.arange(3, len(pt), 3)])  # pulls the charges of all the atoms
                 charges = zip(x_vals, y_vals, Cdat)
                 charge_struct.update((((x, y), mc) for x, y, mc in charges))
                 allCharges.append(list(charge_struct.values()))
@@ -88,7 +90,7 @@ class BuildIntensityCluster:
                 dat = []
                 for i in Mcharges:
                     pt = i.split()
-                    dat.append([float(pt[-7]), float(pt[-4]), float(pt[-1])])
+                    dat.append([float(pt[k]) for k in np.arange(3, len(pt), 3)])  # pulls the charges of all the atoms
                 allCharges.append(dat)
         # concatenate lists
         dipoles = np.concatenate(dips)
@@ -97,9 +99,8 @@ class BuildIntensityCluster:
         energy = energy - min(energy)
         carts = np.concatenate(cats)
         MullCharges = np.concatenate(allCharges)
-        if self.num_atoms == 1:
-            # Because we had to extend the monomer scan, we have to remove the odd angles to have a square grid
-            # remove odd angle points & convert to AU
+        # Remove the odd angles to have a square grid from rigid dimer and all monomer
+        if self.isotopologue == "rigid" or self.num_atoms == 1:
             evenIdx = np.argwhere(scoords[:, 1] % 2 < 1).squeeze()
             dipoles = dipoles[evenIdx]
             scoords = scoords[evenIdx]
@@ -123,18 +124,24 @@ class BuildIntensityCluster:
 
     def parse_fchkData(self, cluster_dir, sys_str, water_idx):
         from FChkInterpreter import FchkInterpreter
-        fchk_files = glob.glob(os.path.join(cluster_dir, "FDpts", f"{sys_str}_FD*.fchk"))
+        fchk_files = glob.glob(os.path.join(cluster_dir, "FDpts", f"{sys_str}FD*.fchk"))
         allDat = FchkInterpreter(*fchk_files)
         carts = allDat.cartesians
         ens = allDat.MP2Energy
-        R12, HOH = self.calc_scoords(carts, water_idx, in_AU=True)
+        R12, HOH = self.calc_scoords(carts, water_idx)  # should be in bohr and radians
         dipoles = allDat.Dipoles
-        dataDict = {"HOH": np.unique(HOH), "ROH": np.unique(R12),
-                    "Cartesians": carts, "Dipoles": dipoles, "Energies": ens}
+        idx = np.lexsort((HOH, R12))  # OH is slow moving coordinate, hoh is fast
+        sort_carts = carts[idx]
+        sort_dips = dipoles[idx]
+        sort_ens = ens[idx]
+        dataDict = {"HOH": np.unique(HOH[idx]), "ROH": np.unique(R12[idx]),
+                    "Cartesians": sort_carts, "Dipoles": sort_dips, "Energies": sort_ens}
         return dataDict
 
     @staticmethod
-    def calc_scoords(cartesians, water_idx, in_AU=False):
+    def calc_scoords(cartesians, water_idx):
+        """Calculates the two OH bond lengths and the HOH angle, the OH bond lengths will be returned in whatever
+        unit they come in and the HOH angle will always be returned in radians"""
         xList = []
         yList = []
         for Cart in cartesians:
@@ -146,12 +153,8 @@ class BuildIntensityCluster:
             HOH = (np.arccos(ang))
             xList.append(r12)
             yList.append(HOH)
-        if in_AU:
-            x_array = np.round(Constants.convert(xList, "angstroms", to_AU=True), 4)
-            y_array = np.round(yList, 4)
-        else:
-            x_array = np.round(xList, 4)
-            y_array = np.round(yList * (180 / np.pi), 4)
+        x_array = np.round(np.array(xList), 4)
+        y_array = np.round(np.array(yList), 4)
         return x_array, y_array
 
     @staticmethod
@@ -173,11 +176,12 @@ class BuildIntensityCluster:
             RotDips[i, :] = dip @ EckObjCarts.TransformMat[i]  # use transformation matrix from cartesians for dipoles
         return RotCoords, RotDips
 
-    def save_DataDict(self, cluster_dir, sys_str, atom_str, water_idx, dtype=None):
+    def save_DataDict(self, cluster_dir, sys_str, atom_str, water_idx, dtype=None, scan_coords=None):
         if dtype is None:
             raise Exception("type of data to parse is not defined, use `dtype` keyword to define big or small scan")
         elif dtype == "big":
-            dataDict1 = self.parse_logData(cluster_dir=cluster_dir, sys_str=sys_str, water_idx=water_idx)
+            dataDict1 = self.parse_logData(cluster_dir=cluster_dir, sys_str=sys_str,
+                                           water_idx=water_idx, scan_coords=scan_coords)
         elif dtype == "small":
             dataDict1 = self.parse_fchkData(cluster_dir=cluster_dir, sys_str=sys_str, water_idx=water_idx)
         else:
@@ -185,9 +189,6 @@ class BuildIntensityCluster:
         rot_coords, rot_dips = self.spiny_spin(data_dict=dataDict1, atom_str=atom_str)
         dataDict1["RotatedCoords"] = rot_coords
         dataDict1["RotatedDipoles"] = rot_dips
-        fn = os.path.join(cluster_dir, f"{sys_str}bigDataDict.npz")
-        np.savez(fn, **dataDict1)
-        print(f"saved Data to {fn}")
         return dataDict1
 
     @staticmethod
@@ -210,6 +211,7 @@ class BuildW1(BuildIntensityCluster):
         self.isotopologue = isotopologue
         self.AtomStr = ["O", "H", "H"]
         self.WaterIdx = [0, 1, 2]
+        self.scanCoords = None
         self._ClusterDir = None
         self._SysStr = None
         self._BigScanDataDict = None
@@ -230,6 +232,7 @@ class BuildW1(BuildIntensityCluster):
                 self._SysStr = "w1_"
             elif self.isotopologue == "optimized":
                 self._SysStr = "w1_O_"
+                self.scanCoords = ["R1", "A1"]
             else:
                 raise Exception(f"unknown isotopolgoue: {self.isotopologue} for w1")
         return self._SysStr
@@ -241,8 +244,11 @@ class BuildW1(BuildIntensityCluster):
             if os.path.exists(DDfile):
                 self._BigScanDataDict = np.load(DDfile, allow_pickle=True)
             else:
-                self._BigScanDataDict = self.save_DataDict(cluster_dir=self.ClusterDir, sys_str=self.SysStr,
-                                                           atom_str=self.AtomStr, water_idx=self.WaterIdx, dtype="big")
+                BSDD = self.save_DataDict(cluster_dir=self.ClusterDir, sys_str=self.SysStr, atom_str=self.AtomStr,
+                                          water_idx=self.WaterIdx, dtype="big", scan_coords=self.scanCoords)
+                np.savez(DDfile, **BSDD)
+                print(f"saved Data to {DDfile}")
+                self._BigScanDataDict = BSDD
         return self._BigScanDataDict
 
     @property
@@ -252,9 +258,11 @@ class BuildW1(BuildIntensityCluster):
             if os.path.exists(DDfile):
                 self._SmallScanDataDict = np.load(DDfile, allow_pickle=True)
             else:
-                self._SmallScanDataDict = self.save_DataDict(cluster_dir=self.ClusterDir, sys_str=self.SysStr,
-                                                             atom_str=self.AtomStr, water_idx=self.WaterIdx,
-                                                             dtype="small")
+                SSDD = self.save_DataDict(cluster_dir=self.ClusterDir, sys_str=self.SysStr, atom_str=self.AtomStr,
+                                          water_idx=self.WaterIdx, dtype="small")
+                np.savez(DDfile, **SSDD)
+                print(f"Data saved to {DDfile}")
+                self._SmallScanDataDict = SSDD
         return self._SmallScanDataDict
 
 class BuildW2(BuildIntensityCluster):
@@ -271,6 +279,7 @@ class BuildW2(BuildIntensityCluster):
             self.WaterIdx = [3, 5, 4]
         else:
             self.WaterIdx = [3, 4, 5]
+        self.scanCoords = None
         self._ClusterDir = None
         self._SysStr = None
         self._BigScanDataDict = None
@@ -289,8 +298,10 @@ class BuildW2(BuildIntensityCluster):
         if self._SysStr is None:
             if self.Hbound:
                 sysStr = "w2_R5B_"
+                self.scanCoords = ["R5", "A2"]
             else:
                 sysStr = "w2_R4B_"
+                self.scanCoords = ["R4", "A2"]
             if self.isotopologue == "optimized":
                 sysStr += "O_"
             else:
@@ -305,8 +316,11 @@ class BuildW2(BuildIntensityCluster):
             if os.path.exists(DDfile):
                 self._BigScanDataDict = np.load(DDfile, allow_pickle=True)
             else:
-                self._BigScanDataDict = self.save_DataDict(cluster_dir=self.ClusterDir, sys_str=self.SysStr,
-                                                           atom_str=self.AtomStr, water_idx=self.WaterIdx, dtype="big")
+                BSDD = self.save_DataDict(cluster_dir=self.ClusterDir, sys_str=self.SysStr, atom_str=self.AtomStr,
+                                          water_idx=self.WaterIdx, dtype="big", scan_coords=self.scanCoords)
+                np.savez(DDfile, **BSDD)
+                print(f"Data saved to {DDfile}")
+                self._BigScanDataDict = BSDD
         return self._BigScanDataDict
 
     @property
@@ -316,7 +330,10 @@ class BuildW2(BuildIntensityCluster):
             if os.path.exists(DDfile):
                 self._SmallScanDataDict = np.load(DDfile, allow_pickle=True)
             else:
-                self._SmallScanDataDict = self.save_DataDict(cluster_dir=self.ClusterDir, sys_str=self.SysStr,
+                SSDD = self.save_DataDict(cluster_dir=self.ClusterDir, sys_str=self.SysStr,
                                                              atom_str=self.AtomStr, water_idx=self.WaterIdx,
                                                              dtype="small")
+                np.savez(DDfile, **SSDD)
+                print(f"Data saved to {DDfile}")
+                self._SmallScanDataDict = SSDD
         return self._SmallScanDataDict

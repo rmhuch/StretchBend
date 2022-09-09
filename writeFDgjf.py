@@ -52,6 +52,6 @@ def writeFDgjf(logfile, sys_tag, x_steps, y_steps, x_pos, y_pos):
 if __name__ == '__main__':
     docs = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     MoleculeDir = os.path.join(docs, "stretch_bend", "RyanOctomer")
-    logfile = os.path.join(MoleculeDir, "w6_Opt.log")
-    writeFDgjf(logfile, "w6", np.linspace(-0.0125, 0.0125, num=5, endpoint=True),
-               np.linspace(-1, 1, num=5, endpoint=True), (9, 0), [(8, 1), (9, 1)])
+    logfile = os.path.join(MoleculeDir, "w2", "w2_Opt.log")
+    writeFDgjf(logfile, "w2_R4B", np.linspace(-0.0125, 0.0125, num=5, endpoint=True),
+               np.linspace(-1, 1, num=5, endpoint=True), (8, 0), [(8, 1), (9, 1)])

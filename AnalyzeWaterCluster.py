@@ -133,6 +133,8 @@ class AnalyzeOneWaterCluster:
             Gphiphi_wave = Constants.convert(self.Gphiphi, "wavenumbers", to_AU=False)
             comp_intents[i] = (abs(derivs[i])**2 / (0.393456 ** 2)) * ((1/2) * Gphiphi_wave) * 2.506
         intensity = np.sum(comp_intents)
+        print(f"Bend Derivs: {derivs}")
+        print(np.linalg.norm(derivs))
         return intensity
 
     def calc_SBDipoleDerivs(self):

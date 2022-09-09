@@ -3,8 +3,12 @@ import os
 from Converter import Constants
 
 class AnalyzeIntensityCluster:
-    def __init__(self, ClusterObj):
+    def __init__(self, ClusterObj, HChargetoPlot=None):
         self.ClusterObj = ClusterObj
+        if HChargetoPlot is None:
+            self.Htag = self.ClusterObj.WaterIdx[1]
+        else:
+            self.Htag = HChargetoPlot
         self.SysStr = self.ClusterObj.SysStr
         self._BendDVRData = None
         self._StretchDVRData = None
@@ -23,7 +27,7 @@ class AnalyzeIntensityCluster:
                 self._BendDVRData = np.load(bendDVRfile, allow_pickle=True)
             else:
                 bendDat = run_BendDVR(self.ClusterObj.BigScanDataDict, self.ClusterObj.WaterIdx,
-                                      print_ens=True, plot_potential=True, plot_wfns=True)
+                                      print_ens=True, plot_potential=False, plot_wfns=True)
                 np.savez(bendDVRfile, **bendDat)
                 print(f"saved data to {bendDVRfile}")
                 self._BendDVRData = bendDat
@@ -38,7 +42,7 @@ class AnalyzeIntensityCluster:
                 self._StretchDVRData = np.load(stretchDVRfile, allow_pickle=True)
             else:
                 stretchDat = run_StretchDVR(self.ClusterObj.BigScanDataDict, self.ClusterObj.WaterIdx,
-                                            print_ens=True, plot_potential=True, plot_wfns=True)
+                                            print_ens=True, plot_potential=False, plot_wfns=True)
                 np.savez(stretchDVRfile, **stretchDat)
                 print(f"saved data to {stretchDVRfile}")
                 # All data saved in atomic units
@@ -54,7 +58,7 @@ class AnalyzeIntensityCluster:
                 self._SBDVRData = np.load(SBDVRfile, allow_pickle=True)
             else:
                 SBdat = run_2DDVR(self.ClusterObj.BigScanDataDict, self.ClusterObj.WaterIdx,
-                                  print_ens=False, plot_potential=False, plot_wfns=False)
+                                  print_ens=False, plot_potential=False, plot_wfns=True)
                 np.savez(SBDVRfile, **SBdat)
                 print(f"saved data to {SBDVRfile}")
         return self._SBDVRData
@@ -76,7 +80,9 @@ class AnalyzeIntensityCluster:
         if self._DipDerivs is None:
             fname = os.path.join(self.ClusterObj.MainDir, "w1", f"{self.SysStr}DipDerivs.npz")
             if os.path.exists(fname):
-                self._DipDerivs = np.load(fname, allow_pickle=True)
+                derivs = np.load(fname, allow_pickle=True)
+                self._DipDerivs = {k: derivs[k].item() for k in ["x", "y", "z"]}
+                self._DipDerivs["eqDipole"] = derivs["eqDipole"]
             else:
                 self._DipDerivs = self.calc_DipDerivs()
         return self._DipDerivs
@@ -101,12 +107,14 @@ class AnalyzeIntensityCluster:
     def make_ChargePlots(self):
         from ChargePlots import plot_DeltaQvsHOH, plot_DeltaQvsOH, plotChargeSlopes
         fig_label = os.path.join(self.ClusterObj.MainFigDir, self.ClusterObj.SysStr)
-        OHvslope = plot_DeltaQvsHOH(fig_label, self.ClusterObj.BigScanDataDict, self.SBwfnRanges)
-        HOHvslope = plot_DeltaQvsOH(fig_label, self.ClusterObj.BigScanDataDict, self.SBwfnRanges)
-        slabel = os.path.join(self.ClusterObj.MainFigDir, f"{self.ClusterObj.SysStr}QslopevOH.png")
-        plotChargeSlopes(slabel, OHvslope, xlabel="OH")
-        s2label = os.path.join(self.ClusterObj.MainFigDir, f"{self.ClusterObj.SysStr}QslopevHOH.png")
-        plotChargeSlopes(s2label, HOHvslope, xlabel="HOH")
+        OHvsQ = plot_DeltaQvsHOH(fig_label, self.ClusterObj.BigScanDataDict, self.SBwfnRanges, self.ClusterObj.WaterIdx,
+                                 HchargetoPlot=self.Htag)
+        HOHvsQ = plot_DeltaQvsOH(fig_label, self.ClusterObj.BigScanDataDict, self.SBwfnRanges, self.ClusterObj.WaterIdx,
+                                 HchargetoPlot=self.Htag)
+        slabel = os.path.join(self.ClusterObj.MainFigDir, f"{self.ClusterObj.SysStr}H{self.Htag}_QslopevOH.png")
+        plotChargeSlopes(slabel, OHvsQ, xlabel="OH")
+        s2label = os.path.join(self.ClusterObj.MainFigDir, f"{self.ClusterObj.SysStr}H{self.Htag}_QslopevHOH.png")
+        plotChargeSlopes(s2label, HOHvsQ, xlabel="HOH")
 
     def calc_DipDerivs(self):
         from SurfaceDerivatives import calc_allDerivs
@@ -115,6 +123,12 @@ class AnalyzeIntensityCluster:
         np.savez(fname, **derivDict)
         print(f"Data saved to {fname}")
         return derivDict
+
+    def calc_DerivNorms(self):
+        norms = dict()
+        for key in self.DipDerivs["x"]:
+            norms[key] = np.linalg.norm((self.DipDerivs["x"][key], self.DipDerivs["y"][key], self.DipDerivs["z"][key]))
+        return norms
 
     def calc_all2Dmus(self):
         from functools import reduce
