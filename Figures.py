@@ -54,7 +54,7 @@ class PlotSpectrum:
 class Plots:
     def __init__(self, DataSet):
         self.DataSet = DataSet  # string identifying data being plotted
-        self.rawData = np.loadtxt("SBdata_Aug4.csv", delimiter=",", skiprows=1, dtype=str)  # UPDATE IF DATA UPDATES
+        self.rawData = np.loadtxt("SBdata_Sept29.csv", delimiter=",", skiprows=1, dtype=str)  # UPDATE IF DATA UPDATES
         self.DataHeaders = ["WaterNum", "Number of Acceptors", "Number of Donors", "Number of Acceptors (HOH)",
                             "Number of Donors (HOH)", "OHO Angle (Degrees)", "OO Distance ($\mathrm{\AA}$)",
                             "Bend Frequency ($\mathrm{cm}^{-1}$)", "Bend Intensity (km/mol)",
@@ -529,7 +529,7 @@ class Plots:
                     legend_colors.append(HOHtype)
                 else:
                     pass
-        plt.plot(np.arange(0, 20), np.arange(0, 20), "-k", linewidth=1.0)
+        plt.plot(np.arange(0, 25), np.arange(0, 25), "-k", linewidth=1.0)
         plt.xlim(0, 20)
         plt.ylim(0, 20)
         plt.xlabel(self.DataHeaders[13])

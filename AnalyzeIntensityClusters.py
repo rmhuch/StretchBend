@@ -112,9 +112,15 @@ class AnalyzeIntensityCluster:
         HOHvsQ = plot_DeltaQvsOH(fig_label, self.ClusterObj.BigScanDataDict, self.SBwfnRanges, self.ClusterObj.WaterIdx,
                                  HchargetoPlot=self.Htag)
         slabel = os.path.join(self.ClusterObj.MainFigDir, f"{self.ClusterObj.SysStr}H{self.Htag}_QslopevOH.png")
-        plotChargeSlopes(slabel, OHvsQ, xlabel="OH")
+        if self.ClusterObj.num_atoms == 1:
+            HB = None
+        elif self.ClusterObj.num_atoms == 2:
+            HB = self.ClusterObj.Hbound
+        else:
+            raise Exception("Can not determine if scan is H-bound or not")
+        plotChargeSlopes(slabel, OHvsQ, xlabel="OH", Hbound=HB, HChargetoPlot=self.Htag)
         s2label = os.path.join(self.ClusterObj.MainFigDir, f"{self.ClusterObj.SysStr}H{self.Htag}_QslopevHOH.png")
-        plotChargeSlopes(s2label, HOHvsQ, xlabel="HOH")
+        plotChargeSlopes(s2label, HOHvsQ, xlabel="HOH", Hbound=HB, HChargetoPlot=self.Htag)
 
     def calc_DipDerivs(self):
         from SurfaceDerivatives import calc_allDerivs

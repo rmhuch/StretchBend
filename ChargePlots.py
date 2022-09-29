@@ -21,6 +21,8 @@ def plot_DeltaQvsHOH(fig_label, dataDict, xy_ranges, water_idx, HchargetoPlot=No
     colors = []
     if HchargetoPlot is None:  # define which Hydrogen's Mulliken Charges will be plotted
         plot_idx = water_idx[1]
+    elif HchargetoPlot == "average":
+        plot_idx = (water_idx[1], water_idx[2])
     else:
         plot_idx = HchargetoPlot
     cmap1 = plt.get_cmap("Blues_r")
@@ -65,11 +67,18 @@ def plot_DeltaQvsHOH(fig_label, dataDict, xy_ranges, water_idx, HchargetoPlot=No
         y_max = np.argmin(np.abs(xy[:, 1] - xy_ranges[1, 1]))
         y_range = xy[y_min:y_max, 1]
         y_deg = y_range * (180 / np.pi)
-        all_charges = charge[:, plot_idx] - MC[eq_idx, plot_idx]  # subtract off MC at eq to plot difference
+        if type(plot_idx) is int:
+            all_charges = charge[:, plot_idx] - MC[eq_idx, plot_idx]  # subtract off MC at eq to plot difference
+        elif type(plot_idx) is tuple:
+            chargeA = charge[:, plot_idx[0]] - MC[eq_idx, plot_idx[0]]
+            chargeB = charge[:, plot_idx[1]] - MC[eq_idx, plot_idx[1]]
+            all_charges = np.average(np.column_stack((chargeA, chargeB)), axis=1)
+        else:
+            raise Exception(f"plot index of {plot_idx} is not defined")
         y_charges = all_charges[y_min:y_max]
         plt.plot(y_deg, y_charges, marker=marker, color=color, markerfacecolor=MFC, markersize=10,
                  markeredgewidth=mew, linestyle="None", zorder=zord, label=r"$r_{\mathrm{OH}}$ = %s" % rOHang)
-        colors.append([marker, color, MFC])
+        colors.append([marker, MFC])
         # fit to a line, and plot
         coefs = np.polyfit(y_range - eq_coords[1], y_charges, 2)
         f = np.poly1d(coefs)
@@ -78,6 +87,7 @@ def plot_DeltaQvsHOH(fig_label, dataDict, xy_ranges, water_idx, HchargetoPlot=No
     plt.legend(bbox_to_anchor=(1.04, 0.5), loc='center left')
     plt.xlabel(r"$ \theta_{\mathrm{HOH}} (^{\circ})$")
     plt.ylabel(r"$\mathcal{Q}_{\mathrm{Mul}}^{(\mathrm{H})} - \mathcal{Q}_{\mathrm{Mul,eq}}^{(\mathrm{H})}  (e)$")
+    plt.ylim(-0.2, 0.1)
     plt.tight_layout()
     figname = fig_label + "MCharges_" + f"H{plot_idx}" + "_HOHvsDeltaQ.png"
     plt.savefig(figname, dpi=fig.dpi, bboxinches="tight")
@@ -106,6 +116,8 @@ def plot_DeltaQvsOH(fig_label, dataDict, xy_ranges, water_idx, HchargetoPlot=Non
     colors = []
     if HchargetoPlot is None:  # define which Hydrogen's Mulliken Charges will be plotted
         plot_idx = water_idx[1]
+    elif HchargetoPlot == "average":
+        plot_idx = (water_idx[1], water_idx[2])
     else:
         plot_idx = HchargetoPlot
     cmap1 = plt.get_cmap("Blues_r")
@@ -150,11 +162,18 @@ def plot_DeltaQvsOH(fig_label, dataDict, xy_ranges, water_idx, HchargetoPlot=Non
         y_max = np.argmin(np.abs(yx[:, 0] - xy_ranges[0, 1]))
         y_range = yx[y_min:y_max, 0]
         y_ang = Constants.convert(y_range, "angstroms", to_AU=False)
-        all_charges = charge[:, plot_idx] - MC[eq_idx, plot_idx]  # subtract off MC at eq to plot difference
+        if type(plot_idx) is int:
+            all_charges = charge[:, plot_idx] - MC[eq_idx, plot_idx]  # subtract off MC at eq to plot difference
+        elif type(plot_idx) is tuple:
+            chargeA = charge[:, plot_idx[0]] - MC[eq_idx, plot_idx[0]]
+            chargeB = charge[:, plot_idx[1]] - MC[eq_idx, plot_idx[1]]
+            all_charges = np.average(np.column_stack((chargeA, chargeB)), axis=1)
+        else:
+            raise Exception(f"plot index of {plot_idx} is not defined")
         y_charges = all_charges[y_min:y_max]
         plt.plot(y_ang, y_charges, marker=marker, color=color, markerfacecolor=MFC, markersize=10,
                  markeredgewidth=mew, linestyle="None", zorder=zord, label=r"$\theta_{\mathrm{HOH}}$ = %s" % HOHdeg)
-        colors.append([marker, color, MFC])
+        colors.append([marker, MFC])
         # fit to a line, and plot
         coefs = np.polyfit(y_range - eq_coords[0], y_charges, 2)
         f = np.poly1d(coefs)
@@ -163,6 +182,7 @@ def plot_DeltaQvsOH(fig_label, dataDict, xy_ranges, water_idx, HchargetoPlot=Non
     plt.legend(bbox_to_anchor=(1.04, 0.5), loc='center left')
     plt.xlabel(r"$r_{\mathrm{OH}} (\mathrm{\AA})$")
     plt.ylabel(r"$\mathcal{Q}_{\mathrm{Mul}}^{(\mathrm{H})} - \mathcal{Q}_{\mathrm{Mul,eq}}^{(\mathrm{H})}  (e)$")
+    plt.ylim(-0.2, 0.1)
     plt.tight_layout()
     figname = fig_label + "MCharges_" + f"H{plot_idx}" + "_OHvsDeltaQ.png"
     plt.savefig(figname, dpi=fig.dpi, bboxinches="tight")
@@ -170,17 +190,21 @@ def plot_DeltaQvsOH(fig_label, dataDict, xy_ranges, water_idx, HchargetoPlot=Non
     slopeDat = np.column_stack((plottedHOH, allCoeffs, colors))  # save x values in degrees
     return slopeDat
 
-def plotChargeSlopes(fig_label, slopeData, xlabel=None):
+def plotChargeSlopes(fig_label, slopeData, xlabel=None, Hbound=None, HChargetoPlot=None):
     plt.rcParams.update({'font.size': 20, 'legend.fontsize': 18})
     fig = plt.figure(figsize=(8, 8), dpi=216)
-    x = slopeData[:, 0]   # the x argument (either HOH or OH)
-    slope = slopeData[:, 2]  # the slope (first derivative of the Q plot)
-    markers = slopeData[:, -3]  # the marker used for each Q plot
-    colors = slopeData[:, -2]  # the color of each marker border used in the Q plot
+    x = slopeData[:, 0].astype(float)   # the x argument (either HOH or OH)
+    slope = slopeData[:, 2].astype(float)  # the slope (first derivative of the Q plot)
+    markers = slopeData[:, -2]  # the marker used for each Q plot
     MFCs = slopeData[:, -1]  # the color of each marker face used in the Q plot
     for i in np.arange(len(x)):
-        plt.plot(x[i], slope[i], marker=markers[i], color=colors[i], markerfacecolor=MFCs[i],
+        plt.plot(x[i], slope[i], marker=markers[i], color='k', markerfacecolor=MFCs[i],
                  markeredgewidth=1, markersize=10)
+    # fit to a line, and plot
+    x_dat = x - x[int(np.argwhere(markers == "o"))]
+    coefs = np.polyfit(x_dat, slope, 4)
+    f = np.poly1d(coefs)
+    plt.plot(x, f(x_dat), "--", color='k', label=np.round(coefs[3], 8), zorder=-1)
     plt.ylabel(r"Slope of $\Delta \mathcal{Q}$")
     if xlabel == "HOH":
         plt.xlabel(r"$\theta_{\mathrm{HOH}} (^\circ)$")
@@ -188,6 +212,29 @@ def plotChargeSlopes(fig_label, slopeData, xlabel=None):
         plt.xlabel(r"$r_{\mathrm{OH}} (\mathrm{\AA})$")
     else:
         plt.xlabel(xlabel)
+    if xlabel == "HOH":
+        if Hbound is None:
+            if HChargetoPlot == "average":
+                plt.ylim(0, 0.25)
+            else:
+                plt.ylim(0.225, 0.475)
+        elif Hbound:  # if R5 scan
+            if HChargetoPlot == 5:   # if plotting r5
+                plt.ylim(0.075, 0.325)
+            elif HChargetoPlot == "average":  # if plotting average of two H's
+                plt.ylim(-0.1, 0.15)
+            else:
+                plt.ylim(-0.15, 0.1)
+        else:  # r4 scan
+            if HChargetoPlot == 4:  # if plotting r4
+                plt.ylim(0.25, 0.5)
+            elif HChargetoPlot == "average":  # if plotting average of two H's
+                plt.ylim(0.0, 0.25)
+            else:
+                plt.ylim(-0.15, 0.1)
+    else:  # if OH slopes
+        plt.ylim(-0.15, 0.1)
+    plt.legend()
     plt.tight_layout()
     plt.savefig(fig_label, dpi=fig.dpi, bbox_inches="tight")
 

@@ -53,7 +53,7 @@ class BuildIntensityCluster:
                 charge_struct = dict()
                 with GaussianLogReader(logpath) as reader:
                     parse = reader.parse(("OptimizedScanEnergies", "OptimizedDipoleMoments",
-                                          "StandardCartesianCoordinates", "MullikenCharges"))
+                                          "StandardCartesianCoordinates", "OptimizedMullikenCharges"))
                 raw_data = parse["OptimizedScanEnergies"]  # format energies
                 ens.append(raw_data[0])  # returns MP2 energy
                 xyData.append(np.column_stack((raw_data[1][scan_coords[0]], raw_data[1][scan_coords[1]])))
@@ -66,7 +66,7 @@ class BuildIntensityCluster:
                 coords = zip(x_vals, y_deg, ccs)  # TRIPLE CHECK THIS
                 cart_struct.update((((x, y), cc) for x, y, cc in coords))
                 cats.append(list(cart_struct.values()))
-                Mcharges = (parse["MullikenCharges"])  # format Mulliken Charges
+                Mcharges = (parse["OptimizedMullikenCharges"])  # format Mulliken Charges
                 Cdat = []
                 for i in Mcharges:
                     pt = i.split()
@@ -202,6 +202,24 @@ class BuildIntensityCluster:
         for A in atomarray:
             mass_array.append(Constants.convert(Constants.masses[A][0], Constants.masses[A][1], to_AU=True))
         return np.array(mass_array)
+
+    @staticmethod
+    def saveXYZ(ClusterDir, file_name, DataDict, atomarray):
+        """writes a xyz file to visualize structures from a scan.
+            :param ClusterDir: location for the file to be written to
+            :param file_name: string name of the xyz file to be written
+            :param DataDict: dictionary of data for all steps
+            :param atomarray: list of string atom names
+            :returns saves a xyz file of file_name """
+        coordsAU = DataDict["RotatedCoords"]
+        crds = Constants.convert(coordsAU, "angstroms", to_AU=False)
+        with open(os.path.join(ClusterDir, file_name), 'w') as f:
+            for i in range(len(crds)):
+                f.write("%s \n structure %s \n" % (len(atomarray), (i+1)))
+                for j in range(len(atomarray)):
+                    f.write("%s %5.8f %5.8f %5.8f \n" %
+                            (atomarray[j], crds[i, j, 0], crds[i, j, 1], crds[i, j, 2]))
+                f.write("\n")
 
 class BuildW1(BuildIntensityCluster):
     def __init__(self, num_atoms=1, isotopologue=None):
