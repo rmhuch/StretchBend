@@ -175,16 +175,23 @@ def plot_DeltaQvsOH(fig_label, dataDict, xy_ranges, water_idx, HchargetoPlot=Non
                  markeredgewidth=mew, linestyle="None", zorder=zord, label=r"$\theta_{\mathrm{HOH}}$ = %s" % HOHdeg)
         colors.append([marker, MFC])
         # fit to a line, and plot
-        coefs = np.polyfit(y_range - eq_coords[0], y_charges, 2)
+        coefs = np.polyfit(y_range - eq_coords[0], y_charges, 4)
         f = np.poly1d(coefs)
+        a = np.polyder(f)
         allCoeffs.append(coefs)
-        plt.plot(Constants.convert(y_range, "angstroms", to_AU=False), f(y_range - eq_coords[0]), "--", color=scolor)
+        if HOH == eq_coords[1]:
+            plt.plot(Constants.convert(y_range, "angstroms", to_AU=False), f(y_range - eq_coords[0]), "-", color=scolor)
+            E_idx = np.argwhere(y_range == eq_coords[0])  # plot the eq/eq point as a black filled circle
+            plt.plot(y_ang[E_idx], y_charges[E_idx], marker="o", color=color, markersize=10, linestyle=None, zorder=101)
+        else:
+            plt.plot(Constants.convert(y_range, "angstroms", to_AU=False), f(y_range - eq_coords[0]), "--",
+                     color=scolor)
     plt.legend(bbox_to_anchor=(1.04, 0.5), loc='center left')
     plt.xlabel(r"$r_{\mathrm{OH}} (\mathrm{\AA})$")
     plt.ylabel(r"$\mathcal{Q}_{\mathrm{Mul}}^{(\mathrm{H})} - \mathcal{Q}_{\mathrm{Mul,eq}}^{(\mathrm{H})}  (e)$")
     plt.ylim(-0.2, 0.1)
     plt.tight_layout()
-    figname = fig_label + "MCharges_" + f"H{plot_idx}" + "_OHvsDeltaQ.png"
+    figname = fig_label + "MCharges_" + f"H{plot_idx}" + "_OHvsDeltaQ4.png"
     plt.savefig(figname, dpi=fig.dpi, bboxinches="tight")
     plt.close()
     slopeDat = np.column_stack((plottedHOH, allCoeffs, colors))  # save x values in degrees
@@ -194,12 +201,15 @@ def plotChargeSlopes(fig_label, slopeData, xlabel=None, Hbound=None, HChargetoPl
     plt.rcParams.update({'font.size': 20, 'legend.fontsize': 18})
     fig = plt.figure(figsize=(8, 8), dpi=216)
     x = slopeData[:, 0].astype(float)   # the x argument (either HOH or OH)
-    slope = slopeData[:, 2].astype(float)  # the slope (first derivative of the Q plot)
+    slope = slopeData[:, 4].astype(float)  # the slope (first derivative of the Q plot) **change this if change polyfit
     markers = slopeData[:, -2]  # the marker used for each Q plot
     MFCs = slopeData[:, -1]  # the color of each marker face used in the Q plot
     for i in np.arange(len(x)):
-        plt.plot(x[i], slope[i], marker=markers[i], color='k', markerfacecolor=MFCs[i],
-                 markeredgewidth=1, markersize=10)
+        if markers[i] == "o":
+            plt.plot(x[i], slope[i], marker=markers[i], color='k', markeredgewidth=1, markersize=10)
+        else:
+            plt.plot(x[i], slope[i], marker=markers[i], color='k', markerfacecolor=MFCs[i],
+                     markeredgewidth=1, markersize=10)
     # fit to a line, and plot
     x_dat = x - x[int(np.argwhere(markers == "o"))]
     coefs = np.polyfit(x_dat, slope, 4)
@@ -220,7 +230,7 @@ def plotChargeSlopes(fig_label, slopeData, xlabel=None, Hbound=None, HChargetoPl
                 plt.ylim(0.225, 0.475)
         elif Hbound:  # if R5 scan
             if HChargetoPlot == 5:   # if plotting r5
-                plt.ylim(0.075, 0.325)
+                plt.ylim(0, 0.3)
             elif HChargetoPlot == "average":  # if plotting average of two H's
                 plt.ylim(-0.1, 0.15)
             else:

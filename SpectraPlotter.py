@@ -3,20 +3,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class SpectaPlot:
-    def __init__(self, cluster_size, isomer, method=None, plot_sticks=True, plot_convolutions=True):
+    def __init__(self, cluster_size, isomer, transition="SB", method=None, plot_sticks=True, plot_convolutions=True,
+                 delta=5):
         self.cluster_size = cluster_size
-        if isinstance(isomer, str):
-            self.isomer = isomer
+        self.isomer = isomer
+        self.transition = transition
+        if isinstance(self.isomer, str):
             self.DataFlag = "allmethods"
             self.method = None
-        elif isinstance(isomer, list):
-            self.isomer = isomer
+        elif isinstance(self.isomer, list):
             self.DataFlag = "stackonemethod"
             self.method = method  # this is the one calculation type that will be pulled and plotted.
         else:
             raise Exception("Can not determine type of data to use for plots")
         self.plot_sticks = plot_sticks
         self.plot_convolutions = plot_convolutions
+        self.delta = delta
         self._colors = None
         self._ClusterDir = None
         self._DataSet = None
@@ -56,7 +58,12 @@ class SpectaPlot:
             if self.DataFlag == "allmethods":
                 self._DataSet = self.pullData1()
             elif self.DataFlag == "stackonemethod":
-                self._DataSet = self.pullData2()
+                if self.transition == "SB":
+                    self._DataSet = self.pullData2()
+                elif self.transition == "Fundamental":
+                    self._DataSet = self.pullDataF()
+                else:
+                    raise Exception(f"Can not interpret {self.transition} as transition type")
         return self._DataSet
 
     def pullData1(self):
@@ -99,6 +106,21 @@ class SpectaPlot:
             data_dict[iso] = format_dat
         return data_dict
 
+    def pullDataF(self):
+        """this will pull and store the frequency/intensity data from one calculation type for every isomer for
+        the STRETCH region into a dict (saved as self.DataSet)"""
+        data_dict = dict()
+        for iso in self.isomer:  # loop through the isomers given
+            # pull all the data for one type of calculation
+            all_freqs = np.loadtxt(os.path.join(self.ClusterDir, iso, f"{self.method}_freq.dat"))
+            all_intensities = np.loadtxt(os.path.join(self.ClusterDir, iso, f"{self.method}_lin_dip.dat"))
+            modes = all_intensities[:, :1].flatten()
+            # for the intensities pulled, grab the frequency (add two contributing modes together)
+            start_idx = np.argwhere(modes == all_freqs[4, 0])  # will only pull stretches
+            format_dat = np.column_stack((all_freqs[4:, 1], all_intensities[int(start_idx):, -1]))
+            data_dict[iso] = format_dat
+        return data_dict
+
     @staticmethod
     def plotSticks(ax, dat, color, lw):
         mkline, stline, baseline = ax.stem(dat[:, 0], dat[:, 1], linefmt=f"-{color}",
@@ -106,13 +128,8 @@ class SpectaPlot:
         plt.setp(stline, "linewidth", lw)
         plt.setp(baseline, visible=False)
 
-    def plotGauss(self, ax, dat, color, lw, delta=5):
-        if self.cluster_size == 4:
-            x = np.arange(5000, 5600, 1)
-        elif self.cluster_size == 6:
-            x = np.arange(4600, 5600, 1)
-        else:
-            raise Exception("x-range for Gaussian Convolution undefined")
+    def plotGauss(self, ax, dat, color, lw, delta):
+        x = np.arange(min(dat[:, 0])-100, max(dat[:, 0])+100, 1)
         y = np.zeros(len(x))
         for i in np.arange(len(dat[:, 1])):
             for j, val in enumerate(x):
@@ -122,18 +139,30 @@ class SpectaPlot:
     def defineFigLabel(self):
         if self.method is None:
             if self.plot_sticks and self.plot_convolutions:
-                figlabel = f"w{self.cluster_size}_{self.isomer}_stickConvolute.png"
+                if self.delta != 5:
+                    figlabel = f"w{self.cluster_size}_{self.isomer}_stickConvolute_D{self.delta}.png"
+                else:
+                    figlabel = f"w{self.cluster_size}_{self.isomer}_stickConvolute.png"
             elif self.plot_sticks:
                 figlabel = f"w{self.cluster_size}_{self.isomer}_stick.png"
             elif self.plot_convolutions:
-                figlabel = f"w{self.cluster_size}_{self.isomer}_convolute.png"
+                if self.delta != 5:
+                    figlabel = f"w{self.cluster_size}_{self.isomer}_convolute_D{self.delta}.png"
+                else:
+                    figlabel = f"w{self.cluster_size}_{self.isomer}_convolute.png"
         else:
             if self.plot_sticks and self.plot_convolutions:
-                figlabel = f"w{self.cluster_size}_{self.method}_all_stickConvolute.png"
+                if self.delta !=5:
+                    figlabel = f"w{self.cluster_size}_{self.method}_{self.transition}_all_stickConvolute_D{self.delta}.png"
+                else:
+                    figlabel = f"w{self.cluster_size}_{self.method}_{self.transition}_all_stickConvolute.png"
             elif self.plot_sticks:
-                figlabel = f"w{self.cluster_size}_{self.method}_all_stick.png"
+                figlabel = f"w{self.cluster_size}_{self.method}_{self.transition}_all_stick.png"
             elif self.plot_convolutions:
-                figlabel = f"w{self.cluster_size}_{self.method}_all_convolute.png"
+                if self.delta !=5:
+                    figlabel = f"w{self.cluster_size}_{self.method}_{self.transition}_all_convolute_D{self.delta}.png"
+                else:
+                    figlabel = f"w{self.cluster_size}_{self.method}_{self.transition}_all_convolute.png"
         return figlabel
 
     def makeAllMethodsPlot(self):
@@ -144,7 +173,7 @@ class SpectaPlot:
             if self.plot_sticks:
                 self.plotSticks(ax, self.DataSet[plotTypes[i]], self.colors[i], lw=4)
             if self.plot_convolutions:
-                self.plotGauss(ax, self.DataSet[plotTypes[i]], "k", lw=2.5)
+                self.plotGauss(ax, self.DataSet[plotTypes[i]], "k", lw=2.5, delta=self.delta)
             ax.set_ylim(0, 25)
         plt.suptitle(f"W{self.cluster_size} {self.isomer}")
         plt.subplots_adjust(left=0.15, top=0.9, bottom=0.15, hspace=0.25, wspace=0.25)
@@ -168,18 +197,29 @@ class SpectaPlot:
                 allData.append(self.DataSet[iso])
             legendElements.append(Patch(facecolor=self.colors[i], label=iso))
         if self.method == "lm":
-            self.plotGauss(ax, np.concatenate(allData), self.colors[0], 2)
+            self.plotGauss(ax, np.concatenate(allData), self.colors[0], 2, delta=self.delta)
         elif self.method == "HOH":
-            self.plotGauss(ax, np.concatenate(allData), self.colors[1], 2)
+            self.plotGauss(ax, np.concatenate(allData), self.colors[1], 2, delta=self.delta)
         elif self.method == "intra":
-            self.plotGauss(ax, np.concatenate(allData), self.colors[2], 2)
+            self.plotGauss(ax, np.concatenate(allData), self.colors[2], 2, delta=self.delta)
         elif self.method == "nm":
-            self.plotGauss(ax, np.concatenate(allData), self.colors[3], 2)
+            self.plotGauss(ax, np.concatenate(allData), self.colors[3], 2, delta=self.delta)
         else:
             raise Exception(f"can not determine color for method {self.method}")
         plt.xlabel(r"Frequency ($\mathrm{cm}^{-1}$)")
         plt.ylabel("Intensity")
-        plt.ylim(0, 25)
+        if self.transition == "SB":
+            if self.cluster_size == 6:
+                plt.ylim(0, 25)
+            elif self.cluster_size == 4:
+                plt.ylim(0, 30)
+        if self.transition == "Fundamental":
+            if self.cluster_size == 4:
+                plt.ylim(0, 3500)
+                plt.xlim(3300, 4000)
+            elif self.cluster_size == 6:
+                plt.ylim(0, 6000)
+                plt.xlim(3200, 4000)
         # plt.legend(handles=legendElements, loc='upper right')
         plt.tight_layout()
         figlabel = self.defineFigLabel()

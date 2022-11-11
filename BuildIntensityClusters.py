@@ -204,7 +204,7 @@ class BuildIntensityCluster:
         return np.array(mass_array)
 
     @staticmethod
-    def saveXYZ(ClusterDir, file_name, DataDict, atomarray):
+    def saveXYZ(ClusterDir, file_name, DataDict, atomarray, eqStruct=False):
         """writes a xyz file to visualize structures from a scan.
             :param ClusterDir: location for the file to be written to
             :param file_name: string name of the xyz file to be written
@@ -212,6 +212,10 @@ class BuildIntensityCluster:
             :param atomarray: list of string atom names
             :returns saves a xyz file of file_name """
         coordsAU = DataDict["RotatedCoords"]
+        if eqStruct:
+            eqIdx = np.argmin(DataDict["Energies"])
+            eqcoord = coordsAU[eqIdx, :, :]
+            coordsAU = np.expand_dims(eqcoord, axis=0)
         crds = Constants.convert(coordsAU, "angstroms", to_AU=False)
         with open(os.path.join(ClusterDir, file_name), 'w') as f:
             for i in range(len(crds)):
@@ -258,7 +262,7 @@ class BuildW1(BuildIntensityCluster):
     @property
     def BigScanDataDict(self):
         if self._BigScanDataDict is None:
-            DDfile = os.path.join(self.ClusterDir, f"{self.SysStr}bigDataDict.npz")
+            DDfile = os.path.join(self.ClusterDir, "w1_RBdata", f"{self.SysStr}bigDataDict.npz")
             if os.path.exists(DDfile):
                 self._BigScanDataDict = np.load(DDfile, allow_pickle=True)
             else:
@@ -272,7 +276,7 @@ class BuildW1(BuildIntensityCluster):
     @property
     def SmallScanDataDict(self):
         if self._SmallScanDataDict is None:
-            DDfile = os.path.join(self.ClusterDir, f"{self.SysStr}smallDataDict.npz")
+            DDfile = os.path.join(self.ClusterDir, "w1_RBdata", f"{self.SysStr}smallDataDict.npz")
             if os.path.exists(DDfile):
                 self._SmallScanDataDict = np.load(DDfile, allow_pickle=True)
             else:

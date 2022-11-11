@@ -410,8 +410,8 @@ class Plots:
         plt.tight_layout()
         plt.savefig(os.path.join(self.FigDir, f"OOvsBI_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
 
-    def plotSBfreqvsSBI(self):
-        plt.rcParams.update({'font.size': 25})
+    def plotSBfreqvsSBI(self, dataset="LM"):
+        plt.rcParams.update({'font.size': 20})
         legend_markers = []
         legend_colors = []
         fig = plt.figure(figsize=(12, 8), dpi=216)
@@ -419,7 +419,12 @@ class Plots:
             for OH in self.DataDict[key]:
                 HOHtype = self.findHOHType(OH)
                 x = OH[11]
-                y = OH[12]
+                if dataset == "LM":
+                    y = OH[12]
+                elif dataset == "VPT":
+                    y = OH[13]
+                else:
+                    raise Exception(f"Can not determine dataset = {dataset}")
                 plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                          markersize=10)
                 if self.MarkerDict[key] not in legend_markers:
@@ -441,7 +446,7 @@ class Plots:
                                         label=HOHtype))
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, f"SBFreqvsSBI_{self.DataSet}_bigfont.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"SBFreqvsSBI_{self.DataSet}_{dataset}.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotSfreqvsSI(self):
         plt.rcParams.update({'font.size': 25})

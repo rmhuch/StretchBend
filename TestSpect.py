@@ -1,8 +1,8 @@
 from SpectraPlotter import SpectaPlot
 
-test1 = SpectaPlot(cluster_size=6, isomer=["book", "cage", "ring"], method="intra",
+test1 = SpectaPlot(cluster_size=4, isomer=["3_1", "cage", "ring"], transition="SB", method="nm",
+                   plot_sticks=True, plot_convolutions=True, delta=15)
+test2 = SpectaPlot(cluster_size=4, isomer="ring",
                    plot_sticks=True, plot_convolutions=True)
-test2 = SpectaPlot(cluster_size=6, isomer="book",
-                   plot_sticks=True, plot_convolutions=True)
-test2.makePlot()
+test1.makePlot()
 
