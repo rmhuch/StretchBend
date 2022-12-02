@@ -23,6 +23,10 @@ def plot_DipolevsOH(fig_label, dataDict, xy_ranges, DipoletoPlot=None):
     elif DipoletoPlot is "Z":
         Dip_sort = Dip[sort_idx, 2]
         eqDip = Dip[eq_idx, 2]
+    elif DipoletoPlot is "Mag":
+        DipMag = np.sqrt(Dip[:, 0]**2 + Dip[:, 1]**2 + Dip[:, 2]**2)
+        Dip_sort = DipMag[sort_idx]
+        eqDip = np.sqrt(Dip[eq_idx, 0]**2 + Dip[eq_idx, 1]**2 + Dip[eq_idx, 2]**2)
     else:
         raise Exception(f"Dipole {DipoletoPlot} can not be plotted.")
     squareDip_full = Dip_sort.reshape(grid_len, grid_len)
@@ -114,6 +118,7 @@ def plotDipSlopes(fig_label, slopeData, DipoletoPlot=None):
     for i in np.arange(len(x)):
         if markers[i] == "o":
             plt.plot(x[i], slope[i], marker=markers[i], color='k', markeredgewidth=1, markersize=10)
+            print(slope[i])
         else:
             plt.plot(x[i], slope[i], marker=markers[i], color='k', markerfacecolor=MFCs[i],
                      markeredgewidth=1, markersize=10)

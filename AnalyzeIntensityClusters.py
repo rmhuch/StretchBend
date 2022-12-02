@@ -133,13 +133,37 @@ class AnalyzeIntensityCluster:
         s2label = os.path.join(self.ClusterObj.MainFigDir, f"{self.ClusterObj.SysStr}H{self.Htag}_QslopevHOH4.png")
         plotChargeSlopes(s2label, HOHvsQ, xlabel="HOH", Hbound=HB, HChargetoPlot=self.Htag)
 
+    def make_FixedChargePlots(self):
+        from ChargePlots import plot_FixedCharge, plotFCSlopes
+        fig_label = os.path.join(self.ClusterObj.MainFigDir, self.ClusterObj.SysStr)
+        if self.ClusterObj.num_atoms == 1:
+            HB = None
+        elif self.ClusterObj.num_atoms == 2:
+            HB = self.ClusterObj.Hbound
+        else:
+            raise Exception("Can not determine if scan is H-bound or not")
+        for i in ["X", "Y", "Z"]:
+            FCdat = plot_FixedCharge(fig_label, self.ClusterObj.BigScanDataDict, self.SBwfnRanges,
+                                     self.ClusterObj.WaterIdx, ComptoPlot=i)
+            slabel = os.path.join(self.ClusterObj.MainFigDir, f"{self.ClusterObj.SysStr}H{self.Htag}_{i}FCslopevHOH.png")
+            plotFCSlopes(slabel, FCdat, Hbound=HB, ComptoPlot=i)
+        # i = "Mag"
+        # FCdat = plot_FixedCharge(fig_label, self.ClusterObj.BigScanDataDict, self.SBwfnRanges,
+        #                          self.ClusterObj.WaterIdx, ComptoPlot=i)
+        # slabel = os.path.join(self.ClusterObj.MainFigDir, f"{self.ClusterObj.SysStr}H{self.Htag}_{i}FCslopevHOH.png")
+        # plotFCSlopes(slabel, FCdat, Hbound=HB, ComptoPlot=i)
+
     def make_DipolePlots(self):
         from DipolePlots import plot_DipolevsOH, plotDipSlopes
         fig_label = os.path.join(self.ClusterObj.MainFigDir, self.ClusterObj.SysStr)
-        for i in ["X", "Y", "Z"]:
-            dipVSoh = plot_DipolevsOH(fig_label, self.ClusterObj.BigScanDataDict, self.SBwfnRanges, DipoletoPlot=i)
-            slabel = os.path.join(self.ClusterObj.MainFigDir, f"{self.ClusterObj.SysStr}H{self.Htag}_{i}DslopevHOH.png")
-            plotDipSlopes(slabel, dipVSoh, DipoletoPlot=i)
+        # for i in ["X", "Y", "Z"]:
+        #     dipVSoh = plot_DipolevsOH(fig_label, self.ClusterObj.BigScanDataDict, self.SBwfnRanges, DipoletoPlot=i)
+        #     slabel = os.path.join(self.ClusterObj.MainFigDir, f"{self.ClusterObj.SysStr}H{self.Htag}_{i}DslopevHOH.png")
+        #     plotDipSlopes(slabel, dipVSoh, DipoletoPlot=i)
+        i = "Mag"
+        dipVSoh = plot_DipolevsOH(fig_label, self.ClusterObj.BigScanDataDict, self.SBwfnRanges, DipoletoPlot=i)
+        slabel = os.path.join(self.ClusterObj.MainFigDir, f"{self.ClusterObj.SysStr}H{self.Htag}_{i}DslopevHOH.png")
+        plotDipSlopes(slabel, dipVSoh, DipoletoPlot=i)
 
     def calc_DipDerivs(self):
         from SurfaceDerivatives import calc_allDerivs
