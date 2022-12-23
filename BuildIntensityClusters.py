@@ -158,6 +158,34 @@ class BuildIntensityCluster:
         return x_array, y_array
 
     @staticmethod
+    def parse_NaturalCharges(cluster_dir, sys_str):
+        """reads NBO log files and pulls out x, y, and natural charge for all atoms in the system. Adds this array to
+        'BigDataDict'..."""
+        from McUtils.GaussianInterface import GaussianLogReader
+        files = glob.glob(os.path.join(cluster_dir, f"{sys_str}nbo_Scan*.log"))
+        nat_charges = []
+        xData = []
+        yData = []
+        for f in files:
+            with GaussianLogReader(f) as reader:
+                parse = reader.parse(("NaturalCharges", "ScanEnergies"))
+            NBO = parse["NaturalCharges"]
+            nat_charges.append(np.asarray(NBO))
+            # this returns a list of Natural Charges on each atom (only works for O and H rn) in the order of the scan
+            raw_data = parse["ScanEnergies"][1]  # format energies
+            xData.append(raw_data[:, 1])
+            yData.append(raw_data[:, 2])
+        Ncharges = np.concatenate(nat_charges)
+        x = np.concatenate(xData)
+        x_au = Constants.convert(x, "angstroms", to_AU=True)
+        y = np.concatenate(yData)
+        y_au = (y * 2) * (np.pi / 180)  # convert scan coords from bisector to HOH and to radians
+        scoords_au = np.column_stack((x_au, y_au))
+        idx = np.lexsort((scoords_au[:, 0], scoords_au[:, 1]))  # OH is FAST moving coordinate, hoh is SLOW
+        NatChargeArray = np.column_stack((x_au[idx], y_au[idx], Ncharges[idx]))
+        return NatChargeArray
+
+    @staticmethod
     def spiny_spin(data_dict, atom_str):
         from Eckart_turny_turn import EckartsSpinz
         from PAF_spinz import MomentOfSpinz
@@ -182,6 +210,7 @@ class BuildIntensityCluster:
         elif dtype == "big":
             dataDict1 = self.parse_logData(cluster_dir=cluster_dir, sys_str=sys_str,
                                            water_idx=water_idx, scan_coords=scan_coords)
+            dataDict1["NaturalCharges"] = self.parse_NaturalCharges(cluster_dir=cluster_dir, sys_str=sys_str)
         elif dtype == "small":
             dataDict1 = self.parse_fchkData(cluster_dir=cluster_dir, sys_str=sys_str, water_idx=water_idx)
         else:
@@ -262,7 +291,7 @@ class BuildW1(BuildIntensityCluster):
     @property
     def BigScanDataDict(self):
         if self._BigScanDataDict is None:
-            DDfile = os.path.join(self.ClusterDir, "w1_RBdata", f"{self.SysStr}bigDataDict.npz")
+            DDfile = os.path.join(self.ClusterDir, f"{self.SysStr}bigDataDict.npz")
             if os.path.exists(DDfile):
                 self._BigScanDataDict = np.load(DDfile, allow_pickle=True)
             else:
@@ -276,7 +305,7 @@ class BuildW1(BuildIntensityCluster):
     @property
     def SmallScanDataDict(self):
         if self._SmallScanDataDict is None:
-            DDfile = os.path.join(self.ClusterDir, "w1_RBdata", f"{self.SysStr}smallDataDict.npz")
+            DDfile = os.path.join(self.ClusterDir, f"{self.SysStr}smallDataDict.npz")
             if os.path.exists(DDfile):
                 self._SmallScanDataDict = np.load(DDfile, allow_pickle=True)
             else:
@@ -295,7 +324,7 @@ class BuildW2(BuildIntensityCluster):
         self.isotopologue = isotopologue
         self.AtomStr = ["O", "H", "H", "O", "H", "H"]
         if Hbound is None:
-            raise Exception("use 'Hbound' to identify if we are interested in a bound of free OH and try again")
+            raise Exception("use 'Hbound' to identify if we are interested in a bound or free OH and try again")
         self.Hbound = Hbound
         if self.Hbound:
             self.WaterIdx = [3, 5, 4]

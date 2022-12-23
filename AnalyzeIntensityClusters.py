@@ -83,7 +83,7 @@ class AnalyzeIntensityCluster:
     @property
     def DipDerivs(self):
         if self._DipDerivs is None:
-            fname = os.path.join(self.ClusterObj.MainDir, "w1", f"{self.SysStr}DipDerivs.npz")
+            fname = os.path.join(self.ClusterObj.ClusterDir, f"{self.SysStr}DipDerivs.npz")
             if os.path.exists(fname):
                 derivs = np.load(fname, allow_pickle=True)
                 self._DipDerivs = {k: derivs[k].item() for k in ["x", "y", "z"]}
@@ -153,6 +153,13 @@ class AnalyzeIntensityCluster:
         # slabel = os.path.join(self.ClusterObj.MainFigDir, f"{self.ClusterObj.SysStr}H{self.Htag}_{i}FCslopevHOH.png")
         # plotFCSlopes(slabel, FCdat, Hbound=HB, ComptoPlot=i)
 
+    def make_NCPlots(self):
+        from NaturalCharges import plot_NCs
+        fig_label = os.path.join(self.ClusterObj.MainFigDir, self.ClusterObj.SysStr)
+        eq_idx = np.argmin(self.ClusterObj.BigScanDataDict["Energies"])
+        eq_coords = self.ClusterObj.BigScanDataDict["xyData"][eq_idx]
+        plot_NCs(fig_label, self.ClusterObj.BigScanDataDict, eq_coords, self.ClusterObj.WaterIdx, self.SBwfnRanges)
+
     def make_DipolePlots(self):
         from DipolePlots import plot_DipolevsOH, plotDipSlopes
         fig_label = os.path.join(self.ClusterObj.MainFigDir, self.ClusterObj.SysStr)
@@ -164,6 +171,28 @@ class AnalyzeIntensityCluster:
         dipVSoh = plot_DipolevsOH(fig_label, self.ClusterObj.BigScanDataDict, self.SBwfnRanges, DipoletoPlot=i)
         slabel = os.path.join(self.ClusterObj.MainFigDir, f"{self.ClusterObj.SysStr}H{self.Htag}_{i}DslopevHOH.png")
         plotDipSlopes(slabel, dipVSoh, DipoletoPlot=i)
+
+    def make_FCDipCompPlots(self, EQonly=False):
+        from DipFCPlots import plotFCDipSlopes, plot_FCDipvsOH, plotFCvsHOH
+        fig_label = os.path.join(self.ClusterObj.MainFigDir, self.ClusterObj.SysStr)
+        if self.ClusterObj.SysStr.find("w1") >= 0:
+            for i in ["Mag"]:  # ["X", "Y", "Mag"]:
+                plotFCvsHOH(fig_label, self.ClusterObj.BigScanDataDict, self.SBwfnRanges,
+                               self.ClusterObj.WaterIdx, ComptoPlot=i)  # , EQonly=EQonly, Xaxis="OH")
+                # if EQonly is False:
+                #     slabel = os.path.join(self.ClusterObj.MainFigDir,
+                #                             f"{self.ClusterObj.SysStr}{i}Comp_DipFCslope.png")
+                #     plotFCDipSlopes(slabel, self.ClusterObj.BigScanDataDict, self.SBwfnRanges,
+                #                     self.ClusterObj.WaterIdx, ComptoPlot=i)
+        else:
+            for i in ["Mag"]:  # ["X", "Z", "Mag"]:
+                plotFCvsHOH(fig_label, self.ClusterObj.BigScanDataDict, self.SBwfnRanges,
+                               self.ClusterObj.WaterIdx, ComptoPlot=i)  # , EQonly=EQonly, Xaxis="OH")
+                # if EQonly is False:
+                #     slabel = os.path.join(self.ClusterObj.MainFigDir,
+                #                             f"{self.ClusterObj.SysStr}H{self.Htag}_{i}Comp_DipFCslope.png")
+                #     plotFCDipSlopes(slabel, self.ClusterObj.BigScanDataDict, self.SBwfnRanges,
+                #                     self.ClusterObj.WaterIdx, ComptoPlot=i)
 
     def calc_DipDerivs(self):
         from SurfaceDerivatives import calc_allDerivs
@@ -225,10 +254,11 @@ class AnalyzeIntensityCluster:
         for i in np.arange(1, len(self.wfns[0, :])):  # starts at 1 to only loop over exciting states
             print("excited state: ", i)
             freq = self.SBDVRData["energy_array"][i] - self.SBDVRData["energy_array"][0]
-            print(freq)
+            freq_wave = Constants.convert(freq, "wavenumbers", to_AU=False)
+            print(freq_wave)
             for j in np.arange(3):
                 matEl[j] = np.dot(self.wfns[:, 0], (trans_mom[:, j] * self.wfns[:, i]))
                 comp_intents[j] = (matEl[j]) ** 2
-            intensities[i-1] = np.sum(comp_intents) * freq * 2.506 / (0.393456 ** 2)
+            intensities[i-1] = np.sum(comp_intents) * freq_wave * 2.506 / (0.393456 ** 2)
             print(intensities[i-1])
         return intensities

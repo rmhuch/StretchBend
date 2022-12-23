@@ -30,6 +30,8 @@ from AnalyzeIntensityClusters import *
 # print("DerivRatio 1: ", dr1)
 # print("DerivRatio 2: ", dr2)
 # se = Plots(DataSet="All")
+# se.plotSBIntenseRatio()
+# se.plotSIntenseRatio()
 # se.make_OH_Sticks()
 # se .make_SB_sticks()
 # se.plotSIvsSBI()
@@ -44,22 +46,22 @@ from AnalyzeIntensityClusters import *
 # se.plotVPTvsSBI_AVG()
 # se.plotDerivRatiovsSBI()
 # se.plotDerivRatiovsVPT()
-#
+
 # tdmTypes = ["Dipole Surface", "Cubic", "Quadratic", "Quadratic Bilinear", "Linear"]
 # for tdm in tdmTypes:
-#     w1 = BuildW1(isotopologue="rigid")
+#     w1 = BuildW2(isotopologue="rigid", Hbound=False)
 #     analyzeObj = AnalyzeIntensityCluster(w1, TDMtype=tdm)
-#     print(analyzeObj.calcStretchIntensity())
+#     a = analyzeObj.twoDintensities  # this property prints results as it goes...
 
 # w1 = BuildW1(isotopologue="rigid")
 # analyzeObj = AnalyzeIntensityCluster(w1)
 # print(analyzeObj.calcStretchIntensity())
 
-w2 = BuildW2(isotopologue="rigid", Hbound=True)
-# w1 = BuildW1(isotopologue="rigid")
+# w2 = BuildW2(isotopologue="rigid", Hbound=True)
+w1 = BuildW1(isotopologue="rigid")
 # w1.saveXYZ(w1.ClusterDir, "w1_eq.xyz", w1.BigScanDataDict, w1.AtomStr, eqStruct=True)
-analyzeObj = AnalyzeIntensityCluster(w2)  # , HChargetoPlot=4)
-# analyzeObj.make_DipolePlots()
-analyzeObj.make_FixedChargePlots()
+analyzeObj = AnalyzeIntensityCluster(w1)  # , HChargetoPlot=4)
+# analyzeObj.make_NCPlots()
+analyzeObj.make_FCDipCompPlots(EQonly=False)
 # analyzeObj.SBDVRData()
 

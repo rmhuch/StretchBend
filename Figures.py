@@ -447,6 +447,77 @@ class Plots:
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
         plt.savefig(os.path.join(self.FigDir, f"SBFreqvsSBI_{self.DataSet}_{dataset}.png"), dpi=fig.dpi, bboxinches="tight")
+    def plotSBIntenseRatio(self):
+        plt.rcParams.update({'font.size': 20})
+        legend_markers = []
+        legend_colors = []
+        fig = plt.figure(figsize=(12, 8), dpi=216)
+        for key in self.DataDict:
+            for i, OH in enumerate(self.DataDict[key]):
+                HOHtype = self.findHOHType(OH)
+                x = OH[11]
+                if OH[2] == 1:  # this means it is a bound H
+                    wIdx = np.argwhere(self.DataDict[key][:, 0] == OH[0]).squeeze()
+                    w2Idx = wIdx[np.where(wIdx != i)]
+                    w2 = self.DataDict[key][w2Idx].T
+                    if w2[2] == 0:  # this means this water has 1 bound and one free H
+                        y = OH[12] / w2[12]
+                        plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
+                                 markersize=10)
+                        if self.MarkerDict[key] not in legend_markers:
+                            legend_markers.append(self.MarkerDict[key])
+                        if HOHtype not in legend_colors:
+                            legend_colors.append(HOHtype)
+        plt.xlim(4900, 5600)
+        plt.ylim(0, 24)
+        plt.xlabel(self.DataHeaders[11])
+        plt.ylabel(r"I$_{bound}$ / I$_{free}$")
+        legendElements = []
+        for key in legend_markers:
+            legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
+                                         markersize=10, label=self.LabelDict[key]))
+        for HOHtype in legend_colors:
+            legendElements.append(Patch(facecolor=self.ColorDict[HOHtype], edgecolor=self.ColorDict[HOHtype],
+                                        label=HOHtype))
+        plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.FigDir, f"SBFreqvsSBIratio_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
+
+    def plotSIntenseRatio(self):
+        plt.rcParams.update({'font.size': 20})
+        legend_markers = []
+        legend_colors = []
+        fig = plt.figure(figsize=(12, 8), dpi=216)
+        for key in self.DataDict:
+            for i, OH in enumerate(self.DataDict[key]):
+                HOHtype = self.findHOHType(OH)
+                x = OH[9]
+                if OH[2] == 1:  # this means it is a bound H
+                    wIdx = np.argwhere(self.DataDict[key][:, 0] == OH[0]).squeeze()
+                    w2Idx = wIdx[np.where(wIdx != i)]
+                    w2 = self.DataDict[key][w2Idx].T
+                    if w2[2] == 0:  # this means this water has 1 bound and one free H
+                        y = OH[10] / w2[10]
+                        plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
+                                 markersize=10)
+                        if self.MarkerDict[key] not in legend_markers:
+                            legend_markers.append(self.MarkerDict[key])
+                        if HOHtype not in legend_colors:
+                            legend_colors.append(HOHtype)
+        plt.xlim(3200, 4000)
+        plt.ylim(0, 24)
+        plt.xlabel(self.DataHeaders[9])
+        plt.ylabel("I_bound / I_free")
+        legendElements = []
+        for key in legend_markers:
+            legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
+                                         markersize=10, label=self.LabelDict[key]))
+        for HOHtype in legend_colors:
+            legendElements.append(Patch(facecolor=self.ColorDict[HOHtype], edgecolor=self.ColorDict[HOHtype],
+                                        label=HOHtype))
+        plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.FigDir, f"SFreqvsSIratio_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotSfreqvsSI(self):
         plt.rcParams.update({'font.size': 25})
