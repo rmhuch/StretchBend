@@ -1,4 +1,6 @@
 import numpy as np
+
+
 def calcDthetaDr(dataDict):
     dips = dataDict["RotatedDipoles"]
     # calculate each dtheta dr by simple 4pt FD
@@ -18,6 +20,7 @@ def calcDthetaDr(dataDict):
     dthetadr = np.linalg.norm(dthetadr_comps)
     return dthetadr
 
+
 def calcDr(dataDict):
     dips = dataDict["RotatedDipoles"]
     # calculate each dtheta dr by 3pt FD @ eq theta
@@ -34,22 +37,36 @@ def calcDr(dataDict):
     dr = np.linalg.norm(dr_comps)
     return dr
 
+
 def calc_derivs(fd_hohs, fd_ohs, FDgrid, FDvalues):
     from McUtils.Zachary import finite_difference
     derivs = dict()
+    # first derivatives (2)
     derivs["firstHOH"] = float(finite_difference(fd_hohs, FDvalues[2, :], 1, stencil=5, only_center=True))
     derivs["firstOH"] = float(finite_difference(fd_ohs, FDvalues[:, 2], 1, stencil=5, only_center=True))
+    # second derivatives (3)
     derivs["secondHOH"] = float(finite_difference(fd_hohs, FDvalues[2, :], 2, stencil=5, only_center=True))
     derivs["secondOH"] = float(finite_difference(fd_ohs, FDvalues[:, 2], 2, stencil=5, only_center=True))
-    derivs["thirdHOH"] = float(finite_difference(fd_hohs, FDvalues[2, :], 3, stencil=5, only_center=True))
-    derivs["thirdOH"] = float(finite_difference(fd_ohs, FDvalues[:, 2], 3, stencil=5, only_center=True))
     derivs["mixedHOH_OH"] = float(finite_difference(FDgrid, FDvalues, (1, 1), stencil=(5, 5), accuracy=0,
                                                     only_center=True))
+    # third derivatives (4)
+    derivs["thirdHOH"] = float(finite_difference(fd_hohs, FDvalues[2, :], 3, stencil=5, only_center=True))
+    derivs["thirdOH"] = float(finite_difference(fd_ohs, FDvalues[:, 2], 3, stencil=5, only_center=True))
     derivs["mixedHOH_OHOH"] = float(finite_difference(FDgrid, FDvalues, (1, 2), stencil=(5, 5), accuracy=0,
                                                       only_center=True))
     derivs["mixedHOHHOH_OH"] = float(finite_difference(FDgrid, FDvalues, (2, 1), stencil=(5, 5), accuracy=0,
                                                        only_center=True))
+    # fourth derivatives (5)
+    derivs["fourthHOH"] = float(finite_difference(fd_hohs, FDvalues[2, :], 4, stencil=5, only_center=True))
+    derivs["fourthOH"] = float(finite_difference(fd_ohs, FDvalues[:, 2], 4, stencil=5, only_center=True))
+    derivs["mixedHOHHOHHOH_OH"] = float(finite_difference(FDgrid, FDvalues, (3, 1), stencil=(5, 5), accuracy=0,
+                                                          only_center=True))
+    derivs["mixedHOHHOH_OHOH"] = float(finite_difference(FDgrid, FDvalues, (2, 2), stencil=(5, 5), accuracy=0,
+                                                         only_center=True))
+    derivs["mixedHOH_OHOHOH"] = float(finite_difference(FDgrid, FDvalues, (1, 3), stencil=(5, 5), accuracy=0,
+                                                        only_center=True))
     return derivs
+
 
 def calc_allDerivs(dataDict):
     fd_hohs = dataDict["HOH"]
@@ -66,9 +83,22 @@ def calc_allDerivs(dataDict):
     derivs = {'x': xderivs, 'y': yderivs, 'z': zderivs, 'eqDipole': eqDipole}
     return derivs
 
+
+def calc_PotDerivs(dataDict):
+    import matplotlib.pyplot as plt
+    fd_hohs = dataDict["HOH"]
+    fd_ohs = dataDict["ROH"]
+    pot = dataDict["Energies"]
+    # plt.contourf(fd_hohs, fd_ohs, pot.reshape(len(fd_ohs), len(fd_hohs)), levels=15)
+    # plt.show()
+    FDgrid = np.array(np.meshgrid(fd_ohs, fd_hohs)).T
+    FDvalues = np.reshape(pot, (5, 5))
+    derivs = calc_derivs(fd_hohs, fd_ohs, FDgrid, FDvalues)
+    return derivs
+
+
 def calc_allNorms(derivDict):
     norms = dict()
     for key in derivDict["x"]:
         norms[key] = np.linalg.norm((derivDict["x"][key], derivDict["y"][key], derivDict["z"][key]))
     return norms
-

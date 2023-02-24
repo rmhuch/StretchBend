@@ -21,7 +21,7 @@ def mass_weight(hessian, mass=None, num_coord=None, **opts):
 def norms(ham):
     """solves (GF)*qn = lambda*qn
         :arg ham: Hamiltonian of system (massweighted hessian)
-        :returns dictionary of frequencies squared(lambda) (atomic units) and normal mode coeficients (qns)"""
+        :returns dictionary of frequencies squared(lambda) (atomic units) and normal mode coefficients (qns)"""
     freq2, qn = np.linalg.eigh(ham)
     normal_modes = {'freq2': freq2,
                     'qn': qn}

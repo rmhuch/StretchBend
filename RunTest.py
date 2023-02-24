@@ -15,7 +15,7 @@ from AnalyzeIntensityClusters import *
 # water6 = BuildHexCage(num_atoms=18, isotopologue="allH", FDBstep="0.5")
 # water5pls = BuildHexT1(num_atoms=19, isotopologue="Hw5", FDBstep="0.5")
 # analyzeObj = AnalyzeOneWaterCluster(ClusterObj=monomer)
-# a = analyzeObj.FDIntensity
+# a = analyzeObj.SBDipoleDerivs
 # print("Stretch derivs", analyzeObj.StretchDipoleDerivs)
 # print(np.linalg.norm(analyzeObj.StretchDipoleDerivs[0]), np.linalg.norm(analyzeObj.StretchDipoleDerivs[1]))
 # print("SB derivs:", analyzeObj.SBDipoleDerivs)
@@ -47,21 +47,23 @@ from AnalyzeIntensityClusters import *
 # se.plotDerivRatiovsSBI()
 # se.plotDerivRatiovsVPT()
 
-# tdmTypes = ["Dipole Surface", "Cubic", "Quadratic", "Quadratic Bilinear", "Linear"]
+# tdmTypes = ["Dipole Surface", "Cubic", "Quadratic", "Quadratic Diagonal", "Quadratic Bilinear", "Linear"]
 # for tdm in tdmTypes:
-#     w1 = BuildW2(isotopologue="rigid", Hbound=False)
-#     analyzeObj = AnalyzeIntensityCluster(w1, TDMtype=tdm)
-#     a = analyzeObj.twoDintensities  # this property prints results as it goes...
+
+w1 = BuildW1(isotopologue="rigid")  # , Hbound=False)
+analyzeObj = AnalyzeIntensityCluster(w1, TDMtype="Quartic")
+a = analyzeObj.twoDintensities
+# print(a)
 
 # w1 = BuildW1(isotopologue="rigid")
 # analyzeObj = AnalyzeIntensityCluster(w1)
 # print(analyzeObj.calcStretchIntensity())
 
 # w2 = BuildW2(isotopologue="rigid", Hbound=True)
-w1 = BuildW1(isotopologue="rigid")
-# w1.saveXYZ(w1.ClusterDir, "w1_eq.xyz", w1.BigScanDataDict, w1.AtomStr, eqStruct=True)
-analyzeObj = AnalyzeIntensityCluster(w1)  # , HChargetoPlot=4)
-# analyzeObj.make_NCPlots()
-analyzeObj.make_FCDipCompPlots(EQonly=False)
-# analyzeObj.SBDVRData()
+# # w1 = BuildW1(isotopologue="rigid")
+# # w1.saveXYZ(w1.ClusterDir, "w1_eq.xyz", w1.BigScanDataDict, w1.AtomStr, eqStruct=True)
+# analyzeObj = AnalyzeIntensityCluster(w2)  # , HChargetoPlot=4)
+# # analyzeObj.make_NCPlots()
+# analyzeObj.make_FCDipCompPlots(EQonly=True)
+# # analyzeObj.SBDVRData()
 

@@ -26,7 +26,7 @@ class SpectaPlot:
     @property
     def colors(self):
         if self._colors is None:
-            self._colors = ["c", "r", "g", "b"]  # ["C0", "C3", "C4", "C5"]
+            self._colors = ["c", "m", "r", "g", "b"]  # ["C0", "C3", "C4", "C5"]
             # if self.DataFlag == "allmethods":
             #     self._colors = ["C0", "C3", "C4", "C5"]
             # elif self.DataFlag == "stackonemethod":
@@ -70,10 +70,14 @@ class SpectaPlot:
         """this will pull and store the frequency/intensity data from every calculation type for the SB region
         into a dict (saved as self.DataSet)"""
         data_dict = dict()
-        for type in ["lm", "nm", "intra", "HOH"]:
+        for type in ["lm", "nm", "intra", "HOH", "OH"]:
             # pull all the data for one type of calculation
-            all_freqs = np.loadtxt(os.path.join(self.ClusterDir, self.isomer, f"{type}_freq.dat"))
-            all_intensities = np.loadtxt(os.path.join(self.ClusterDir, self.isomer, f"{type}_SB.dat"))
+            if self.cluster_size == 2:
+                all_freqs = np.loadtxt(os.path.join(self.ClusterDir, f"{type}_freq.dat"))
+                all_intensities = np.loadtxt(os.path.join(self.ClusterDir, f"{type}_SB.dat"))
+            else:
+                all_freqs = np.loadtxt(os.path.join(self.ClusterDir, self.isomer, f"{type}_freq.dat"))
+                all_intensities = np.loadtxt(os.path.join(self.ClusterDir, self.isomer, f"{type}_SB.dat"))
             modes = all_intensities[:, :2]
             intensities = all_intensities[:, -1]
             # for the intensities pulled, grab the frequency (add two contributing modes together)
@@ -128,7 +132,8 @@ class SpectaPlot:
         plt.setp(stline, "linewidth", lw)
         plt.setp(baseline, visible=False)
 
-    def plotGauss(self, ax, dat, color, lw, delta):
+    @staticmethod
+    def plotGauss(ax, dat, color, lw, delta):
         x = np.arange(min(dat[:, 0])-100, max(dat[:, 0])+100, 1)
         y = np.zeros(len(x))
         for i in np.arange(len(dat[:, 1])):
@@ -137,44 +142,33 @@ class SpectaPlot:
         ax.plot(x, y, "-", color=color, linewidth=lw)
 
     def defineFigLabel(self):
-        if self.method is None:
-            if self.plot_sticks and self.plot_convolutions:
-                if self.delta != 5:
-                    figlabel = f"w{self.cluster_size}_{self.isomer}_stickConvolute_D{self.delta}.png"
-                else:
-                    figlabel = f"w{self.cluster_size}_{self.isomer}_stickConvolute.png"
-            elif self.plot_sticks:
-                figlabel = f"w{self.cluster_size}_{self.isomer}_stick.png"
-            elif self.plot_convolutions:
-                if self.delta != 5:
-                    figlabel = f"w{self.cluster_size}_{self.isomer}_convolute_D{self.delta}.png"
-                else:
-                    figlabel = f"w{self.cluster_size}_{self.isomer}_convolute.png"
+        figlabel = "w"
+        if self.cluster_size == 2:
+            figlabel += f"{self.cluster_size}_{self.transition}_"
+        elif isinstance(self.isomer, list):
+            figlabel += f"{self.cluster_size}_{self.transition}_allISO_"
+        elif isinstance(self.isomer, str):
+            figlabel = f"w{self.cluster_size}_{self.transition}_{self.isomer}_"
         else:
-            if self.plot_sticks and self.plot_convolutions:
-                if self.delta !=5:
-                    figlabel = f"w{self.cluster_size}_{self.method}_{self.transition}_all_stickConvolute_D{self.delta}.png"
-                else:
-                    figlabel = f"w{self.cluster_size}_{self.method}_{self.transition}_all_stickConvolute.png"
-            elif self.plot_sticks:
-                figlabel = f"w{self.cluster_size}_{self.method}_{self.transition}_all_stick.png"
-            elif self.plot_convolutions:
-                if self.delta !=5:
-                    figlabel = f"w{self.cluster_size}_{self.method}_{self.transition}_all_convolute_D{self.delta}.png"
-                else:
-                    figlabel = f"w{self.cluster_size}_{self.method}_{self.transition}_all_convolute.png"
+            raise Exception("Can not name file")
+        if self.plot_sticks and self.plot_convolutions:
+            figlabel += f"stickConvolute_D{self.delta}.png"
+        elif self.plot_sticks:
+            figlabel += f"stick.png"
+        elif self.plot_convolutions:
+            figlabel += f"convolute_D{self.delta}.png"
         return figlabel
 
     def makeAllMethodsPlot(self):
         plt.rcParams.update({'font.size': 18})
-        fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(8, 8), dpi=216, sharex="all", sharey="all")
-        plotTypes = ["lm", "HOH", "intra", "nm"]
+        fig, axes = plt.subplots(nrows=5, ncols=1, figsize=(8, 10), dpi=216, sharex="all", sharey="all")
+        plotTypes = ["lm", "OH", "HOH", "intra", "nm"]
         for i, ax in enumerate(axes):
             if self.plot_sticks:
                 self.plotSticks(ax, self.DataSet[plotTypes[i]], self.colors[i], lw=4)
             if self.plot_convolutions:
                 self.plotGauss(ax, self.DataSet[plotTypes[i]], "k", lw=2.5, delta=self.delta)
-            ax.set_ylim(0, 25)
+            ax.set_ylim(0, 10)
         plt.suptitle(f"W{self.cluster_size} {self.isomer}")
         plt.subplots_adjust(left=0.15, top=0.9, bottom=0.15, hspace=0.25, wspace=0.25)
         fig.text(0.5, 0.04, r"Frequency ($\mathrm{cm}^{-1}$)", ha='center')
@@ -213,6 +207,8 @@ class SpectaPlot:
                 plt.ylim(0, 25)
             elif self.cluster_size == 4:
                 plt.ylim(0, 30)
+            elif self.cluster_size == 2:
+                plt.ylim(0, 15)
         if self.transition == "Fundamental":
             if self.cluster_size == 4:
                 plt.ylim(0, 3500)

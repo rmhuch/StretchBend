@@ -3,7 +3,7 @@ import numpy as np
 
 
 class FchkInterpreter:
-    def __init__(self, *fchks, **kwargs):
+    def __init__(self, fchks, **kwargs):
         self.params = kwargs
         if len(fchks) == 0:
             raise Exception('Nothing to interpret.')

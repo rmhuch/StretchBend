@@ -32,6 +32,7 @@ def pull_HOHpltDat(dataDict, xy_ranges, water_idx, ComptoPlot):
     squareYX = squareYX_full[cut_Y, :, :]
     squareOHVecs = squareOhVecs_full[cut_Y, :, :]
     squareDip = squareDip_full[cut_Y, :, :]
+    print(ComptoPlot)
     if ComptoPlot == "X":  # assign idx number based on `ComptoPlot`
         c = 0
     elif ComptoPlot == "Y":
@@ -42,10 +43,15 @@ def pull_HOHpltDat(dataDict, xy_ranges, water_idx, ComptoPlot):
         c = "Mag"
     else:
         raise Exception(f"Component {ComptoPlot} is not defined")
-    if water_idx[0] > 0:  # only if plotting dimer
-        sCoords = dataDict["RotatedCoords"][sort_idx]
+    # pull all coords
+    sCoords = dataDict["RotatedCoords"][sort_idx]
+    if water_idx[0] == 0:  # if monomer
+        sqCoords = sCoords.reshape(grid_len, grid_len, 3, 3)
+        coordInds = [0, 1]  # the x & y are nonzero in the monomer
+    else:  # if dimer
         sqCoords = sCoords.reshape(grid_len, grid_len, 6, 3)
-        squareCoords = sqCoords[cut_Y, :, :, :]
+        coordInds = [0, 2]  # the x & z are nonzero in the dimer
+    squareCoords = sqCoords[cut_Y, :, :, :]
     cmap1 = plt.get_cmap("Blues_r")  # set all colors for map
     counter1 = 0
     max1 = len(np.argwhere(squareYX[:, 0, 1] < eq_coords[1]))  # the maximum number of HOHs plotted UNDER eq
@@ -56,6 +62,7 @@ def pull_HOHpltDat(dataDict, xy_ranges, water_idx, ComptoPlot):
     for idx in np.arange(len(squareYX)):  # pull data for one HOH value
         yx = squareYX[idx]  # OH, HOH where OH is fast HOH is slow
         HOH = yx[0, 1]
+        carts = squareCoords[idx]
         if HOH == eq_coords[1]:  # set the color for the markers
             MFC = 'w'
         elif HOH < eq_coords[1]:  # bend angle is SMALLER than the equilibrium
@@ -84,7 +91,10 @@ def pull_HOHpltDat(dataDict, xy_ranges, water_idx, ComptoPlot):
             comp = np.sqrt((FC * squareOHVecs[idx, :, 0]) ** 2 + (FC * squareOHVecs[idx, :, 1]) ** 2
                            + (FC * squareOHVecs[idx, :, 2]) ** 2)
             eqComp = comp[OhIdx]
-            dip = np.sqrt(squareDip[idx, :, 0] ** 2 + squareDip[idx, :, 1] ** 2 + squareDip[idx, :, 2] ** 2)
+            # for the dipole magnitude, we will rotate the OH vector to the X coordinate
+            cosT = squareOHVecs[idx, :, coordInds[0]] / yx[:, 0]
+            sinT = squareOHVecs[idx, :, coordInds[1]] / yx[:, 0]
+            dip = (squareDip[idx, :, coordInds[0]] * cosT) + (squareDip[idx, :, coordInds[1]] * sinT)
             eqDip = dip[OhIdx]
         else:
             comp = FC * squareOHVecs[idx, :, c]
@@ -93,6 +103,7 @@ def pull_HOHpltDat(dataDict, xy_ranges, water_idx, ComptoPlot):
             eqDip = dip[OhIdx]
         DC = eqDip / np.linalg.norm(squareOHVecs[idx, OhIdx, :])
         HOHdeg = int(np.rint(HOH * (180 / np.pi)))  # convert value for legend
+        print(f"For angle {HOHdeg}: FC - {eqComp}, Dip - {eqDip}")
         # edit OH range to 20% of max ground state wfn
         x_min = np.argmin(np.abs(yx[:, 0] - xy_ranges[0, 0]))
         x_max = np.argmin(np.abs(yx[:, 0] - xy_ranges[0, 1]))
@@ -105,14 +116,26 @@ def pull_HOHpltDat(dataDict, xy_ranges, water_idx, ComptoPlot):
         shiftdip = dip - eqDip
         y_dips = shiftdip[x_min:x_max]
         coefsDip = np.polyfit(x_eq0, y_dips, 4)
-        if type(c) == str:
+        if type(c) == str:  # this creates the data sets that plot the linear dipole on the magnitude plots
             if water_idx[0] == 0:  # monomer
-                y_deriv =
+                y_deriv = 0.19787 * x_eq0
+                coefsDeriv = [0, 0, 0, 0.19787]
+            elif water_idx[1] == 4:  # free OH
+                y_deriv = 0.17709 * x_eq0
+                coefsDeriv = [0, 0, 0, 0.17709]
+            elif water_idx[1] == 5:
+                y_deriv = 0.59393 * x_eq0
+                coefsDeriv = [0, 0, 0, 0.59393]
+        else:
+            y_deriv = 0
+            coefsDeriv = 0
         degDat = {"x_SI": x_ang,  # OH values to be plotted on X-axis
                   "x_eq0": x_eq0,  # OH values shifted so eq is 0 (for expansion)
                   "FC": FC,  # the calculated Fixed Charge for this HOH
                   "y_charges": y_charges,  # FC to be plotted on Y-axis
-                  "y_dips": y_dips,  # Dipole moments to be plotted on Y-axis
+                  "y_dips": y_dips,  # Dipole moments to be plotted on Y-axis/ If "Mag" then Magnitude rotated to OH
+                  "y_deriv": y_deriv,  # Dipole Derivatives based on FD
+                  "DerivCoeffs": coefsDeriv,  # the slope for the dipole derivative
                   "DipCharge": DC,  # the charge of the equilibrium dipole
                   "FcCoeffs": coefsFC,  # polyfit coefs of FC line
                   "DipCoeffs": coefsDip,  # polyfit coefs of Dipole line
@@ -244,6 +267,8 @@ def plot_FCDipvsOH(fig_label, dataDict, xy_ranges, water_idx, ComptoPlot=None, E
         f = np.poly1d(eqDict["FcCoeffs"])
         plt.plot(eqDict["x_SI"], f(eqDict["x_eq0"]), "--", color="k")
         # plot Dipole points
+        if ComptoPlot == "Mag":
+            plt.plot(eqDict["x_SI"], eqDict["y_deriv"], color="fuchsia", linewidth=3.0, label="Linear Dipole")
         plt.plot(eqDict["x_SI"], eqDict["y_dips"], marker="o", color="k", markerfacecolor="rebeccapurple",
                  markersize=10, markeredgewidth=1, linestyle="None", label="Full Dipole")
         f1 = np.poly1d(eqDict["DipCoeffs"])
@@ -259,20 +284,24 @@ def plot_FCDipvsOH(fig_label, dataDict, xy_ranges, water_idx, ComptoPlot=None, E
                 f = np.poly1d(degDict["FcCoeffs"])
                 plt.plot(degDict["x_SI"], f(degDict["x_eq0"]), "--", color=degDict["MFC"])
                 # plot all the Dipole plots
-                plt.plot(degDict["x_SI"], degDict["y_dips"], marker="o", color="k", markerfacecolor=degDict["MFC"],
-                         markersize=10, markeredgewidth=1, linestyle="None",
-                         label=np.round(PltDat[deg]["DipCoeffs"][3], 8))
-                f1 = np.poly1d(degDict["DipCoeffs"])
-                plt.plot(degDict["x_SI"], f1(degDict["x_eq0"]), "-", color=degDict["MFC"])
+                if ComptoPlot == "Mag":
+                    plt.plot(degDict["x_SI"], degDict["y_deriv"], color=degDict["MFC"],
+                             label=np.round(PltDat[deg]["DipCoeffs"][3], 8))
+                else:
+                    plt.plot(degDict["x_SI"], degDict["y_dips"], marker="o", color="k", markerfacecolor=degDict["MFC"],
+                             markersize=10, markeredgewidth=1, linestyle="None",
+                             label=np.round(PltDat[deg]["DipCoeffs"][3], 8))
+                    f1 = np.poly1d(degDict["DipCoeffs"])
+                    plt.plot(degDict["x_SI"], f1(degDict["x_eq0"]), "-", color=degDict["MFC"])
     plt.legend(bbox_to_anchor=(1.04, 0.5), loc='center left')
     plt.xlabel(Xlabel)
     plt.ylabel(r"$\Delta \mu_{%s}$" % ComptoPlot)
     plt.ylim(-0.25, 0.25)
     plt.tight_layout()
     if EQonly:
-        figname = fig_label + "DeltaMu_" + ComptoPlot + "_" + Xaxis + "DipFCplot_EQonly.png"
+        figname = fig_label + "DeltaMu_" + ComptoPlot + "_" + Xaxis + "DipFCplot_EQonlyDeriv2.png"
     else:
-        figname = fig_label + "DeltaMu_" + ComptoPlot + "_" + Xaxis + "DipFCplot_test1.png"
+        figname = fig_label + "DeltaMu_" + ComptoPlot + "_" + Xaxis + "DipFCplot_test2Deriv.png"
     plt.savefig(figname, dpi=fig.dpi, bboxinches="tight")
     plt.close()
 
