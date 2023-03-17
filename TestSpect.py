@@ -1,9 +1,11 @@
-from SpectraPlotter import SpectaPlot
+from SpectraPlotter import SpectraPlot
 
-# test1 = SpectaPlot(cluster_size=4, isomer=["3_1", "cage", "ring"], transition="SB", method="nm",
-#                    plot_sticks=True, plot_convolutions=True, delta=15)
-# test2 = SpectaPlot(cluster_size=4, isomer="ring",
-#                    plot_sticks=True, plot_convolutions=True)
-test22 = SpectaPlot(cluster_size=2, isomer="data", transition="SB", plot_sticks=True, plot_convolutions=True, delta=5)
-test22.makePlot()
+coup2 = ["lm", "nm"]
+coup4M = ["lm", "OH", "bnd", "nm"]
+coup4I = ["lm", "HOH", "intra", "nm"]
+coup5 = ["lm", "OH", "HOH", "intra", "nm"]
+coup6 = ["lm", "OH", "bnd", "HOH", "intra", "nm"]
+test22 = SpectraPlot(cluster_size=4, isomer=["cage", "ring", "3_1"], coupling=coup6, transition="SB",
+                     plot_sticks=True, plot_convolutions=True, delta=10)
+test22.plot_Spect()
 

@@ -12,7 +12,7 @@ class PlotVPTSpect:
         self.basis = basis
         self.plot_sticks = plot_sticks
         self.plot_convolutions = plot_convolutions
-        self.plot_exp = plot_exp
+        self.plot_exp = plot_exp  # options: True, False, or "only"
         self.delta = delta
         self.region = region
         self.isomer = isomer
@@ -59,7 +59,10 @@ class PlotVPTSpect:
     @property
     def expData(self):
         if self._expData is None:
-            self._expData = self.get_expData()
+            if self.plot_exp == "only":
+                self._expData = self.get_AllexpData()
+            else:
+                self._expData = self.get_expData()
         return self._expData
 
     def get_DataSet(self):
@@ -81,12 +84,26 @@ class PlotVPTSpect:
     def get_expData(self):
         """returns the x/y data for either D13O6 or H13O6 (dependent on `is_deuterated`) as an array to be plotted."""
         if self.isdueterated:
-            fname = "d13o6p_expSpect.dat"
+            dat_path = os.path.join(self.MainDir, "d13o6p_expSpect.dat")
+            dat = np.loadtxt(dat_path, skiprows=1)
         else:
-            fname = "h13o6p_expSpect.dat"
-        dat_path = os.path.join(self.MainDir, fname)
-        dat = np.loadtxt(dat_path, skiprows=1)
+            dat1_path = os.path.join(self.MainDir, "spectrum_part1.dat")
+            dat2_path = os.path.join(self.MainDir, "spectrum_part2.dat")
+            dat1 = np.loadtxt(dat1_path)
+            dat2 = np.loadtxt(dat2_path)
+            dat = (dat1, dat2)
         return dat
+
+    def get_AllexpData(self):
+        """returns the x/y data for either D13O6 or H13O6 (dependent on `is_deuterated`) as an array to be plotted."""
+        expDat = dict()
+        allD_dat_path = os.path.join(self.MainDir, "d13o6p_expSpect.dat")
+        expDat["allD"] = np.loadtxt(allD_dat_path, skiprows=1)
+        dat1_path = os.path.join(self.MainDir, "spectrum_part1.dat")
+        dat2_path = os.path.join(self.MainDir, "spectrum_part2.dat")
+        expDat["allH1"] = np.loadtxt(dat1_path)
+        expDat["allH2"] = np.loadtxt(dat2_path)
+        return expDat
 
     def FindFigLabel(self):
         if self.isdueterated:  # do we have all H or all D?
@@ -134,7 +151,7 @@ class PlotVPTSpect:
 
     def plot_Spect(self):
         from matplotlib.patches import Patch
-        # plt.rcParams.update({'font.size': 18})
+        plt.rcParams.update({'font.size': 14})
         if len(self.isomer) == 1:
             fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(6, 3), dpi=216)
             plot_one = True
@@ -145,11 +162,15 @@ class PlotVPTSpect:
         legendElements = []
         if plot_one:
             if self.plot_sticks:
-                self.plotSticks(ax, self.DataSet[self.isomer], self.colors[self.isomer], 2)
+                self.plotSticks(ax, self.DataSet[self.isomer[0]], self.colors[self.isomer[0]], 2)
             if self.plot_convolutions:
-                self.plotGauss(ax, self.DataSet[self.isomer], self.colors[self.isomer], 2, delta=self.delta)
+                self.plotGauss(ax, self.DataSet[self.isomer[0]], self.colors[self.isomer[0]], 2, delta=self.delta)
             if self.plot_exp:
-                ax.plot(self.expData[:, 0], (self.expData[:, 1]*50)+100, "-k", linewidth=2.5, zorder=0)
+                if self.isdueterated:
+                    ax.plot(self.expData[:, 0], (self.expData[:, 1]*50)+100, "-k", linewidth=2.5, zorder=0)
+                else:
+                    for dat in self.expData:
+                        ax.plot(dat[:, 0], dat[:, 1]+100, "-k", linewidth=2.5, zorder=0)
         else:
             for i, iso in enumerate(self.isomer):
                 if self.mixData:
@@ -164,18 +185,21 @@ class PlotVPTSpect:
                 if self.plot_convolutions:
                     self.plotGauss(ax[i], self.DataSet[iso], self.colors[iso], 2, delta=self.delta)
                 if self.plot_exp:
-                    ax[i].plot(self.expData[:, 0], (self.expData[:, 1]*50)+100, "-k", linewidth=2.5, zorder=0)
+                    if self.isdueterated:
+                        ax[i].plot(self.expData[:, 0], (self.expData[:, 1]*50)+100, "-k", linewidth=2.5, zorder=0)
+                    else:
+                        for dat in self.expData:
+                            ax[i].plot(dat[:, 0], dat[:, 1] + 100, "-k", linewidth=2.5, zorder=0)
         plt.xlabel(r"Frequency ($\mathrm{cm}^{-1}$)")
         plt.ylabel("Intensity")
         # plt.legend(handles=legendElements, loc='upper right')
-        plt.tight_layout()
         if self.isdueterated:
             if self.region == "full":
                 plt.ylim(0, 1500)
                 plt.xlim(500, 3000)
             elif self.region == "Stretch":
                 plt.ylim(0, 1500)
-                plt.xlim(1500, 3000)
+                plt.xlim(1642, 2941)
             elif self.region == "MJStretch":
                 plt.ylim(0, 1500)
                 plt.xlim(2200, 2800)
@@ -188,12 +212,33 @@ class PlotVPTSpect:
                 plt.xlim(800, 4000)
             elif self.region == "Stretch":
                 plt.ylim(0, 1500)
-                plt.xlim(2500, 4000)
+                plt.xlim(2601, 3900)
             elif self.region == "SB":
                 plt.ylim(0, 15)
                 plt.xlim(4000, 8000)
         figlabel = self.FindFigLabel()
         figname = os.path.join(self.MainDir, "Spectra", figlabel)
+        plt.tight_layout()
         plt.savefig(figname, dpi=fig.dpi, bboxinches="tight")
         plt.close()
 
+    def plot_ExpSpect(self):
+        plt.rcParams.update({'font.size': 18})
+        fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(6, 6), dpi=216)
+        # plot all H on top axis
+        ax[0].plot(self.expData["allH1"][:, 0], self.expData["allH1"][:, 1] + 100, "-k", linewidth=2.5, zorder=0)
+        ax[0].plot(self.expData["allH2"][:, 0], self.expData["allH2"][:, 1] + 100, "-k", linewidth=2.5, zorder=0)
+        ax[0].text(2650, 1161, r"$\mathrm{H^+(H_2O)_6}$", ha="left", va="top")
+        ax[0].axes.set_xlim(2601, 3900)
+        ax[0].axes.get_yaxis().set_visible(False)
+        # plot all D on bottom axis
+        ax[1].plot(self.expData["allD"][:, 0], self.expData["allD"][:, 1], "-k", linewidth=2.5, zorder=0)
+        ax[1].text(1691, 22, r"$\mathrm{D^+(D_2O)_6}$", ha="left", va="top")
+        ax[1].axes.set_xlim(1642, 2941)
+        ax[1].axes.get_yaxis().set_visible(False)
+        plt.xlabel(r"Frequency ($\mathrm{cm}^{-1}$)")
+        figlabel = "ExpOnly_Stretch_allD_allH"
+        figname = os.path.join(self.MainDir, "Spectra", figlabel)
+        plt.tight_layout()
+        plt.savefig(figname, dpi=fig.dpi, bboxinches="tight")
+        plt.close()

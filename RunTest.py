@@ -50,9 +50,9 @@ from AnalyzeIntensityClusters import *
 # tdmTypes = ["Dipole Surface", "Cubic", "Quadratic", "Quadratic Diagonal", "Quadratic Bilinear", "Linear"]
 # for tdm in tdmTypes:
 
-w1 = BuildW1(isotopologue="rigid")  # , Hbound=False)
+w1 = BuildW2(isotopologue="rigid", Hbound=False)
 analyzeObj = AnalyzeIntensityCluster(w1, TDMtype="Quartic")
-a = analyzeObj.twoDintensities
+a = analyzeObj.HarmTwoDIntensities
 # print(a)
 
 # w1 = BuildW1(isotopologue="rigid")
