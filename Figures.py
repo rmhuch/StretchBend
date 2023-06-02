@@ -415,6 +415,7 @@ class Plots:
         legend_markers = []
         legend_colors = []
         fig = plt.figure(figsize=(12, 8), dpi=216)
+        xy = []
         for key in self.DataDict:
             for OH in self.DataDict[key]:
                 HOHtype = self.findHOHType(OH)
@@ -425,6 +426,7 @@ class Plots:
                     y = OH[13]
                 else:
                     raise Exception(f"Can not determine dataset = {dataset}")
+                xy.append([x, y])
                 plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                          markersize=10)
                 if self.MarkerDict[key] not in legend_markers:
@@ -433,6 +435,11 @@ class Plots:
                     legend_colors.append(HOHtype)
                 else:
                     pass
+        xy = np.array(xy)
+        p = np.polyfit(xy[:, 0], xy[:, 1], 1)
+        new_x = np.linspace(4950, 5550, 50)
+        plt.plot(new_x, np.polyval(p, new_x))
+        plt.text(5400, 18, f"{np.round(p[0], 5)}")
         plt.xlim(4900, 5600)
         plt.ylim(0, 20)
         plt.xlabel(self.DataHeaders[11])
@@ -446,12 +453,13 @@ class Plots:
                                         label=HOHtype))
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, f"SBFreqvsSBI_{self.DataSet}_{dataset}.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"SBFreqvsSBI_{self.DataSet}_{dataset}_wBF.png"), dpi=fig.dpi, bboxinches="tight")
     def plotSBIntenseRatio(self):
         plt.rcParams.update({'font.size': 20})
         legend_markers = []
         legend_colors = []
         fig = plt.figure(figsize=(12, 8), dpi=216)
+        xy = []
         for key in self.DataDict:
             for i, OH in enumerate(self.DataDict[key]):
                 HOHtype = self.findHOHType(OH)
@@ -464,10 +472,19 @@ class Plots:
                         y = OH[12] / w2[12]
                         plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                                  markersize=10)
+                        xy.append([x, float(y)])
                         if self.MarkerDict[key] not in legend_markers:
                             legend_markers.append(self.MarkerDict[key])
                         if HOHtype not in legend_colors:
                             legend_colors.append(HOHtype)
+        xy = np.array(xy)
+        minixy = xy[np.squeeze(np.argwhere(xy[:, 0] > 5100)), :]
+        print(minixy)
+        print(f"SB Intense Ratio - Min: {np.min(xy[:, 1])}  Max: {np.max(xy[:, 1])} AVG:{np.average(minixy[:, 1])}")
+        p = np.polyfit(xy[:, 0], xy[:, 1], 1)
+        new_x = np.linspace(4950, 5550, 50)
+        plt.plot(new_x, np.polyval(p, new_x))
+        plt.text(5400, 22, f"{np.round(p[0], 5)}")
         plt.xlim(4900, 5600)
         plt.ylim(0, 24)
         plt.xlabel(self.DataHeaders[11])
@@ -481,13 +498,14 @@ class Plots:
                                         label=HOHtype))
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, f"SBFreqvsSBIratio_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"SBFreqvsSBIratio_{self.DataSet}_wBF.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotSIntenseRatio(self):
         plt.rcParams.update({'font.size': 20})
         legend_markers = []
         legend_colors = []
         fig = plt.figure(figsize=(12, 8), dpi=216)
+        xy = []
         for key in self.DataDict:
             for i, OH in enumerate(self.DataDict[key]):
                 HOHtype = self.findHOHType(OH)
@@ -500,14 +518,21 @@ class Plots:
                         y = OH[10] / w2[10]
                         plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                                  markersize=10)
+                        xy.append([x, float(y)])
                         if self.MarkerDict[key] not in legend_markers:
                             legend_markers.append(self.MarkerDict[key])
                         if HOHtype not in legend_colors:
                             legend_colors.append(HOHtype)
+        xy = np.array(xy)
+        print(f"S Intense Ratio - Min: {np.min(xy[:, 1])}  Max: {np.max(xy[:, 1])}")
+        p = np.polyfit(xy[:, 0], xy[:, 1], 1)
+        new_x = np.linspace(3250, 3950, 50)
+        plt.plot(new_x, np.polyval(p, new_x))
+        plt.text(3800, 18, f"{np.round(p[0], 5)}")
         plt.xlim(3200, 4000)
         plt.ylim(0, 24)
         plt.xlabel(self.DataHeaders[9])
-        plt.ylabel("I_bound / I_free")
+        plt.ylabel(r"I$_\mathrm{bound}$ / I$_\mathrm{free}$")
         legendElements = []
         for key in legend_markers:
             legendElements.append(Line2D([0], [0], marker=key, markerfacecolor='k', color='w',
@@ -517,13 +542,14 @@ class Plots:
                                         label=HOHtype))
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, f"SFreqvsSIratio_{self.DataSet}.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"SFreqvsSIratio_{self.DataSet}_wBF.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotSfreqvsSI(self):
         plt.rcParams.update({'font.size': 25})
         legend_markers = []
         legend_colors = []
         fig = plt.figure(figsize=(12, 8), dpi=216)
+        xy = []
         for key in self.DataDict:
             for OH in self.DataDict[key]:
                 HOHtype = self.findHOHType(OH)
@@ -531,12 +557,18 @@ class Plots:
                 y = OH[10]
                 plt.plot(x, y, color="k", markerfacecolor=self.ColorDict[HOHtype], marker=self.MarkerDict[key],
                          markersize=10)
+                xy.append([x, y])
                 if self.MarkerDict[key] not in legend_markers:
                     legend_markers.append(self.MarkerDict[key])
                 if HOHtype not in legend_colors:
                     legend_colors.append(HOHtype)
                 else:
                     pass
+        xy = np.array(xy)
+        p = np.polyfit(xy[:, 0], xy[:, 1], 1)
+        new_x = np.linspace(3250, 3950, 50)
+        plt.plot(new_x, np.polyval(p, new_x))
+        plt.text(3800, 900, f"{np.round(p[0], 5)}")
         plt.xlim(3200, 4000)
         plt.ylim(0, 1000)
         plt.xlabel(self.DataHeaders[9])
@@ -551,7 +583,7 @@ class Plots:
 
         plt.legend(handles=legendElements, bbox_to_anchor=(1.04, 0.5), loc='center left')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.FigDir, f"SFreqvsSI_{self.DataSet}_bigfont.png"), dpi=fig.dpi, bboxinches="tight")
+        plt.savefig(os.path.join(self.FigDir, f"SFreqvsSI_{self.DataSet}_bigfont_wBF.png"), dpi=fig.dpi, bboxinches="tight")
 
     def plotBfreqvsBI(self):
         plt.rcParams.update({'font.size': 20})

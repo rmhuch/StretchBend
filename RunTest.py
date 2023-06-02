@@ -35,7 +35,7 @@ from AnalyzeIntensityClusters import *
 # se.make_OH_Sticks()
 # se .make_SB_sticks()
 # se.plotSIvsSBI()
-# se.plotSBfreqvsSBI(dataset="VPT")
+# se.plotSBfreqvsSBI()
 # se.plotSfreqvsSI()
 # se.plotBfreqvsBI()
 # se.plotOOvsSBI()
@@ -47,23 +47,20 @@ from AnalyzeIntensityClusters import *
 # se.plotDerivRatiovsSBI()
 # se.plotDerivRatiovsVPT()
 
-# tdmTypes = ["Dipole Surface", "Cubic", "Quadratic", "Quadratic Diagonal", "Quadratic Bilinear", "Linear"]
+# tdmTypes = ["Dipole Surface", "Quadratic", "Quadratic Bilinear", "Quadratic Diagonal", "Linear"]
+# tdmTypes = ["Quadratic Only", "Quadratic Bilinear Only", "Quadratic Diagonal Only", "Quadratic OH Only",
+#             "Quadratic HOH Only", "Linear OH Only", "Linear HOH Only"]
 # for tdm in tdmTypes:
+# w1 = BuildW2(isotopologue="rigid", Hbound=False)
+# analyzeObj = AnalyzeIntensityCluster(w1, TDMtype="Dipole Surface")
+# a = analyzeObj.HarmTwoDIntensities
 
-w1 = BuildW2(isotopologue="rigid", Hbound=False)
-analyzeObj = AnalyzeIntensityCluster(w1, TDMtype="Quartic")
-a = analyzeObj.HarmTwoDIntensities
-# print(a)
-
-# w1 = BuildW1(isotopologue="rigid")
-# analyzeObj = AnalyzeIntensityCluster(w1)
-# print(analyzeObj.calcStretchIntensity())
-
-# w2 = BuildW2(isotopologue="rigid", Hbound=True)
-# # w1 = BuildW1(isotopologue="rigid")
-# # w1.saveXYZ(w1.ClusterDir, "w1_eq.xyz", w1.BigScanDataDict, w1.AtomStr, eqStruct=True)
-# analyzeObj = AnalyzeIntensityCluster(w2)  # , HChargetoPlot=4)
-# # analyzeObj.make_NCPlots()
-# analyzeObj.make_FCDipCompPlots(EQonly=True)
-# # analyzeObj.SBDVRData()
+w2 = BuildW2(isotopologue="rigid", Hbound=False)
+w2Inds = ["X", "Z"]
+w1 = BuildW1(isotopologue="rigid")
+w1Inds = ["X", "Y"]
+# w1.saveXYZ(w1.ClusterDir, "w1_eq.xyz", w1.BigScanDataDict, w1.AtomStr, eqStruct=True)
+analyzeObj = AnalyzeIntensityCluster(w2)  # , HChargetoPlot=4)
+# analyzeObj.make_NCPlots()
+analyzeObj.make_FCDipCompPlots(EQonly=True, Inds=w2Inds)
 

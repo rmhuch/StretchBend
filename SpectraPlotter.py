@@ -110,6 +110,10 @@ class SpectraPlot:
                 transitionF[i] = float(freq1) + float(freq2)
             format_SB_dat = np.column_stack((transitionF, SB_intensities[:, -1]))
             data_dict[calc_type] = np.row_stack((format_fund_dat, format_SB_dat))
+            # txtpathF = os.path.join(self.ClusterDir, f"{calc_type}_Fundamental.txt")
+            # np.savetxt(txtpathF, format_fund_dat)
+            # txtpathSB = os.path.join(self.ClusterDir, f"{calc_type}_StretchBend.txt")
+            # np.savetxt(txtpathSB, format_SB_dat)
         with open(f_path, "wb") as fp:
             pickle.dump(data_dict, fp)
         print(f"Data saved to {f_path}")
@@ -174,7 +178,7 @@ class SpectraPlot:
         if plot_one:  # makes one plot: one isomer & one coupling method
             isomer = self.isomer[0]
             coupling = self.coupling[0]
-            plt.suptitle(f"W{self.cluster_size} {isomer} {coupling}")
+            # plt.suptitle(f"W{self.cluster_size} {isomer} {coupling}")
             if self.plot_sticks:
                 self.plotSticks(ax, self.DataSet[coupling], "k", self.linetypes[isomer], 2)
             if self.plot_convolutions:
@@ -196,7 +200,7 @@ class SpectraPlot:
                         legendElements.append(Patch(facecolor=self.colors[coup], label=coup))
                 elif len(self.coupling) == 1:  # multiple isomers (subplot) for one coupling method
                     coupling = self.coupling[0]
-                    plt.suptitle(f"W{self.cluster_size} {coupling}")
+                    # plt.suptitle(f"W{self.cluster_size} {coupling}")
                     for j, iso in enumerate(self.isomer):
                         if self.plot_sticks:
                             self.plotSticks(ax[j], self.DataSet[iso][coupling], "k", self.linetypes[iso], 2)
@@ -208,7 +212,7 @@ class SpectraPlot:
             else:  # len(self.isomer == 1) & len(self.coupling > 1)
                 isomer = self.isomer[0]
                 for i, coup in enumerate(self.coupling):  # plot multiple coupling methods (subplot) for one isomer
-                    plt.suptitle(f"W{self.cluster_size} {isomer}")
+                    # plt.suptitle(f"W{self.cluster_size} {isomer}")
                     if self.plot_sticks:
                         self.plotSticks(ax[i], self.DataSet[coup], "k", self.linetypes[isomer], 2)
                     if self.plot_convolutions:
@@ -218,28 +222,28 @@ class SpectraPlot:
             plt.figlegend(handles=legendElements, loc='center right')
         if self.transition == "SB":  # set axis limits
             if self.cluster_size == 6:
-                plt.ylim(0, 25)
+                plt.ylim(0, 80)
                 plt.xlim(4600, 5650)
             elif self.cluster_size == 4:
-                plt.ylim(0, 30)
+                plt.ylim(0, 35)
                 plt.xlim(4950, 5650)
             elif self.cluster_size == 2:
                 plt.ylim(0, 15)
                 plt.xlim(4950, 5650)
         if self.transition == "Fundamental":
             if self.cluster_size == 6:
-                plt.ylim(0, 600)
+                plt.ylim(0, 3500)
                 plt.xlim(3200, 4000)
             elif self.cluster_size == 4:
-                plt.ylim(0, 600)
+                plt.ylim(0, 3500)
                 plt.xlim(3200, 4000)
             elif self.cluster_size == 2:
-                plt.ylim(0, 300)
+                plt.ylim(0, 400)
                 plt.xlim(3200, 4000)
         plt.subplots_adjust(left=0.125, right=0.825, top=0.9, hspace=0.25, wspace=0.25)  # adjust plots for axis labels
-        fig.text(0.5, 0.04, r"Frequency ($\mathrm{cm}^{-1}$)", ha='center')  # add axis labels
-        fig.text(0.04, 0.5, "Intensity (km/mol)", va='center', rotation='vertical')
+        # fig.text(0.5, 0.04, r"Frequency ($\mathrm{cm}^{-1}$)", ha='center')  # add axis labels
+        fig.text(0.02, 0.5, "Intensity (km/mol)", va='center', rotation='vertical')
         figlabel = self.defineFigLabel()
-        figname = os.path.join(self.ClusterDir, "Spectra", figlabel)  # create path to cave fig
+        figname = os.path.join(self.ClusterDir, "Spectra", figlabel)  # create path to save fig
         plt.savefig(figname, dpi=fig.dpi, bboxinches="tight")
         plt.close()

@@ -190,6 +190,7 @@ class PlotVPTSpect:
                     else:
                         for dat in self.expData:
                             ax[i].plot(dat[:, 0], dat[:, 1] + 100, "-k", linewidth=2.5, zorder=0)
+                ax[i].axes.get_yaxis().set_visible(False)
         plt.xlabel(r"Frequency ($\mathrm{cm}^{-1}$)")
         plt.ylabel("Intensity")
         # plt.legend(handles=legendElements, loc='upper right')

@@ -85,13 +85,13 @@ class AnalyzeIntensityCluster:
     @property
     def DipDerivs(self):
         if self._DipDerivs is None:
-            # fname = os.path.join(self.ClusterObj.ClusterDir, f"{self.SysStr}DipDerivs.npz")
-            # if os.path.exists(fname):
-            #     derivs = np.load(fname, allow_pickle=True)
-            #     self._DipDerivs = {k: derivs[k].item() for k in ["x", "y", "z"]}
-            #     self._DipDerivs["eqDipole"] = derivs["eqDipole"]
-            # else:
-            self._DipDerivs = self.calc_DipDerivs()
+            fname = os.path.join(self.ClusterObj.ClusterDir, f"{self.SysStr}DipDerivs.npz")
+            if os.path.exists(fname):
+                derivs = np.load(fname, allow_pickle=True)
+                self._DipDerivs = {k: derivs[k].item() for k in ["x", "y", "z"]}
+                self._DipDerivs["eqDipole"] = derivs["eqDipole"]
+            else:
+                self._DipDerivs = self.calc_DipDerivs()
         return self._DipDerivs
 
     @property
@@ -191,27 +191,17 @@ class AnalyzeIntensityCluster:
         slabel = os.path.join(self.ClusterObj.MainFigDir, f"{self.ClusterObj.SysStr}H{self.Htag}_{i}DslopevHOH.png")
         plotDipSlopes(slabel, dipVSoh, DipoletoPlot=i)
 
-    def make_FCDipCompPlots(self, EQonly=False):
+    def make_FCDipCompPlots(self, EQonly=False, Inds=["Mag", "X"]):
         from DipFCPlots import plotFCDipSlopes, plot_FCDipvsOH, plotFCvsHOH
         fig_label = os.path.join(self.ClusterObj.MainFigDir, self.ClusterObj.SysStr)
-        if self.ClusterObj.SysStr.find("w1") >= 0:
-            for i in ["X", "Y", "Mag"]:
-                plot_FCDipvsOH(fig_label, self.ClusterObj.BigScanDataDict, self.SBwfnRanges,
-                               self.ClusterObj.WaterIdx, ComptoPlot=i, EQonly=EQonly, Xaxis="OH")
-                if EQonly is False:
-                    slabel = os.path.join(self.ClusterObj.MainFigDir,
-                                          f"{self.ClusterObj.SysStr}{i}Comp_DipFCslope.png")
-                    plotFCDipSlopes(slabel, self.ClusterObj.BigScanDataDict, self.SBwfnRanges,
-                                    self.ClusterObj.WaterIdx, ComptoPlot=i)
-        else:
-            for i in ["X", "Z", "Mag"]:
-                plot_FCDipvsOH(fig_label, self.ClusterObj.BigScanDataDict, self.SBwfnRanges,
-                               self.ClusterObj.WaterIdx, ComptoPlot=i, EQonly=EQonly, Xaxis="OH")
-                if EQonly is False:
-                    slabel = os.path.join(self.ClusterObj.MainFigDir,
-                                          f"{self.ClusterObj.SysStr}H{self.Htag}_{i}Comp_DipFCslope.png")
-                    plotFCDipSlopes(slabel, self.ClusterObj.BigScanDataDict, self.SBwfnRanges,
-                                    self.ClusterObj.WaterIdx, ComptoPlot=i)
+        for i in Inds:
+            plot_FCDipvsOH(fig_label, self.ClusterObj.BigScanDataDict, self.DipDerivs, self.SBwfnRanges,
+                           self.ClusterObj.WaterIdx, ComptoPlot=i, EQonly=EQonly, Xaxis="OH")
+            if EQonly is False:
+                slabel = os.path.join(self.ClusterObj.MainFigDir,
+                                      f"{self.ClusterObj.SysStr}{i}_DipFCslope_onecolor.png")
+                plotFCDipSlopes(slabel, self.ClusterObj.BigScanDataDict, self.DipDerivs, self.SBwfnRanges,
+                                self.ClusterObj.WaterIdx, ComptoPlot=i)
 
     def calc_DipDerivs(self):
         from SurfaceDerivatives import calc_allDerivs
@@ -242,6 +232,8 @@ class AnalyzeIntensityCluster:
         bigGrid = self.SBDVRData["grid"][0]
         npts = reduce(mul, bigGrid.shape[:-1], 1)
         Grid = np.reshape(bigGrid, (npts, bigGrid.shape[-1]))
+        # np.savetxt("XXXDVRgrid.txt", Grid) <-- data files compiled to send Anne for her DVR
+        # np.savetxt("XXXDVRpot.txt", self.SBDVRData["potential"].T)
         params = dict()
         fd_ohs = self.ClusterObj.SmallScanDataDict["ROH"]
         fd_hohs = self.ClusterObj.SmallScanDataDict["HOH"]
@@ -249,13 +241,21 @@ class AnalyzeIntensityCluster:
         params["delta_hoh"] = np.round(Grid[:, 1] - fd_hohs[2], 3)
         twodeedms = dict()
         twodeedms["dipSurf"] = self.ClusterObj.BigScanDataDict["RotatedDipoles"]
+        # np.savetxt("XXXDVRdipoleX.txt", self.ClusterObj.BigScanDataDict["RotatedDipoles"][:, 0])
+        # np.savetxt("XXXDVRdipoleZ.txt", self.ClusterObj.BigScanDataDict["RotatedDipoles"][:, 2])
         twodeedms["quartic"] = TM2Dexpansion.quartic_DM(params, self.DipDerivs)
         twodeedms["cubic"] = TM2Dexpansion.cubic_DM(params, self.DipDerivs)
         twodeedms["quad"] = TM2Dexpansion.quad_DM(params, self.DipDerivs)
+        twodeedms["quad_only"] = TM2Dexpansion.quad_only_DM(params, self.DipDerivs)
         twodeedms["quaddiag"] = TM2Dexpansion.quadDIAG_DM(params, self.DipDerivs)
+        twodeedms["quaddiag_only"] = TM2Dexpansion.quadDIAG_only_DM(params, self.DipDerivs)
         twodeedms["quadOH"] = TM2Dexpansion.quadOH_DM(params, self.DipDerivs)
+        twodeedms["quadHOH"] = TM2Dexpansion.quadHOH_DM(params, self.DipDerivs)
         twodeedms["quadbilin"] = TM2Dexpansion.quadBILIN_DM(params, self.DipDerivs)
+        twodeedms["quadbilin_only"] = TM2Dexpansion.quadBILIN_only_DM(params, self.DipDerivs)
         twodeedms["lin"] = TM2Dexpansion.lin_DM(params, self.DipDerivs)
+        twodeedms["linOH"] = TM2Dexpansion.linOH_DM(params, self.DipDerivs)
+        twodeedms["linHOH"] = TM2Dexpansion.linHOH_DM(params, self.DipDerivs)
         return twodeedms
 
     def getting2DIntense(self):
@@ -267,33 +267,49 @@ class AnalyzeIntensityCluster:
             trans_mom = self.tdms["cubic"]
         elif self.TDMtype == "Quadratic":
             trans_mom = self.tdms["quad"]
-        elif self.TDMtype == "Quadratic OH only":
+        elif self.TDMtype == "Quadratic Only":
+            trans_mom = self.tdms["quad_only"]
+        elif self.TDMtype == "Quadratic OH Only":  # contains only second derivative of mu wrt OH
             trans_mom = self.tdms["quadOH"]
+        elif self.TDMtype == "Quadratic HOH Only":  # contains only second derivative of mu wrt HOH
+            trans_mom = self.tdms["quadHOH"]
         elif self.TDMtype == "Quadratic Diagonal":
             trans_mom = self.tdms["quaddiag"]
+        elif self.TDMtype == "Quadratic Diagonal Only":  # contains only second derivatives of mu wrt OH & HOH
+            trans_mom = self.tdms["quaddiag_only"]
         elif self.TDMtype == "Quadratic Bilinear":
             trans_mom = self.tdms["quadbilin"]
+        elif self.TDMtype == "Quadratic Bilinear Only":  # contains only second derivative of mu wrt OH/HOH (mixed term)
+            trans_mom = self.tdms["quadbilin_only"]
         elif self.TDMtype == "Linear":
             trans_mom = self.tdms["lin"]
+        elif self.TDMtype == "Linear OH Only":  # contains only first derivative of mu wrt OH
+            trans_mom = self.tdms["linOH"]
+        elif self.TDMtype == "Linear HOH Only":  # contains only first derivative of mu wrt HOH
+            trans_mom = self.tdms["linHOH"]
         else:
             raise Exception("Can't determine TDM type.")
         # use identified transition moment to calculate the intensities
         print(self.TDMtype)
         intensities = np.zeros(len(self.wfns[0, :]) - 1)
         matEl = np.zeros(3)
+        matEl_D = np.zeros(3)
         comp_intents = np.zeros(3)
         # HOH, 2 HOH, OH, 3 HOH, SB
         # freq = [1572.701, 3117.353, 3744.751, 4690.054, 5294.391]
         for i in np.arange(1, len(self.wfns[0, :])):  # starts at 1 to only loop over exciting states
-            print("excited state: ", i)
             freq = self.SBDVRData["energy_array"][i] - self.SBDVRData["energy_array"][0]
             freq_wave = Constants.convert(freq, "wavenumbers", to_AU=False)
-            print(freq_wave)
             for j in np.arange(3):
                 matEl[j] = np.dot(self.wfns[:, 0], (trans_mom[:, j] * self.wfns[:, i]))
-                comp_intents[j] = (matEl[j]) ** 2
-            intensities[i - 1] = np.sum(comp_intents) * freq_wave * 2.506 / (0.393456 ** 2)
-            print(intensities[i - 1])
+                matEl_D[j] = matEl[j] / 0.393456
+                comp_intents[j] = (abs(matEl[j]) ** 2) * freq_wave * 2.506 / (0.393456 ** 2)
+            intensities[i - 1] = np.sum(comp_intents)
+            if i == 5:
+                print("excited state: ", i)
+                print(freq_wave)
+                print("Component Mat El (D):", matEl_D)
+                print(intensities[i - 1])
         return intensities
 
     def gettingHarm2DIntense(self):
@@ -325,13 +341,16 @@ class AnalyzeIntensityCluster:
         # HOHfreq = np.sqrt(PotDerivs["secondHOH"] / (1/Gphiphi))
         OHfreq = np.sqrt(freq2[1])
         HOHfreq = np.sqrt(freq2[0])
+        print("SB freq:", Constants.convert((OHfreq + HOHfreq), "wavenumbers", to_AU=False))
         # put it all together
-        dT = (0.5 * Gphiphi) / HOHfreq
-        dr = (0.5 * Grr) / OHfreq
-        SB = dT * dr * (OHfreq + HOHfreq)
-        S_wave = Constants.convert(dr*OHfreq, "wavenumbers", to_AU=False)
-        B_wave = Constants.convert(dT*HOHfreq, "wavenumbers", to_AU=False)
-        SB_wave = Constants.convert(SB, "wavenumbers", to_AU=False)
+        dT = np.sqrt((0.5 * Gphiphi) / HOHfreq)
+        dr = np.sqrt((0.5 * Grr) / OHfreq)
+        S_wave = Constants.convert(OHfreq, "wavenumbers", to_AU=False)
+        B_wave = Constants.convert(HOHfreq, "wavenumbers", to_AU=False)
+        SB_wave = Constants.convert((OHfreq + HOHfreq), "wavenumbers", to_AU=False)
+        matElS = np.zeros(3)
+        matElB = np.zeros(3)
+        matElSB = np.zeros(3)
         compsS = np.zeros(3)
         compsB = np.zeros(3)
         compsSB = np.zeros(3)
@@ -340,10 +359,17 @@ class AnalyzeIntensityCluster:
             mu = np.array(((self.DipDerivs[val]["secondHOH"], self.DipDerivs[val]["mixedHOH_OH"]),
                            (self.DipDerivs[val]["mixedHOH_OH"], self.DipDerivs[val]["secondOH"])))
             muQ = np.matmul(L.T,  (np.matmul(mu, L)))
-            compsS[j] = ((abs(self.DipDerivs[val]["firstOH"]) ** 2) / (0.393456 ** 2)) * S_wave * 2.506
-            compsB[j] = ((abs(self.DipDerivs[val]["firstHOH"]) ** 2) / (0.393456 ** 2)) * B_wave * 2.506
-            compsSB[j] = ((abs(muQ[0, 1]) ** 2) / (0.393456 ** 2)) * SB_wave * 2.506
+            matElS[j] =  self.DipDerivs[val]["firstOH"] * dr
+            matElB[j] = self.DipDerivs[val]["firstHOH"] * dT
+            matElSB[j] =  muQ[0, 1] * dT * dr
+            compsS[j] = (matElS[j] ** 2 / (0.393456 ** 2)) * S_wave * 2.506
+            compsB[j] = (matElB[j] ** 2 / (0.393456 ** 2)) * B_wave * 2.506
+            compsSB[j] = (matElSB[j] ** 2 / (0.393456 ** 2)) * SB_wave * 2.506
         intensityS = np.sum(compsS)
         intensityB = np.sum(compsB)
         intensitySB = np.sum(compsSB)
+        print("S intensity: ", intensityS)
+        print("S comps: ", matElS)
+        print("SB intensity: ", intensitySB)
+        print("SB comps: ", matElSB)
         return intensityS, intensityB, intensitySB
